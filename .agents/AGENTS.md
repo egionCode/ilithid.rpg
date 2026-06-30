@@ -23,6 +23,8 @@ Este arquivo contém as regras e diretrizes para o desenvolvimento da aplicaçã
   - Todo desenvolvimento deve ser feito em branches ramificadas a partir da `main` (ex: `feature/nome-da-feature`).
   - O merge na branch `main` deve ser realizado exclusivamente via Pull Requests.
   - A branch `main` sempre deve conter um estado estável pronto para produção.
+- **Versões de Dependências**: Sempre busque e utilize as versões estáveis mais atualizadas de pacotes e dependências de terceiros (ex: dependências no `pubspec.yaml`, ações/workflows do GitHub Actions, etc.).
+
 
 
 ## Diretrizes de Teste
