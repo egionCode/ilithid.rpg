@@ -40,6 +40,4 @@ jobs:
         run: flutter test
 
       - name: Run Security Scan (OSV-Scanner)
-        uses: google/osv-scanner-action/bootstrap-action@v1
-        with:
-          scan-args: --recursive ./
+        uses: google/osv-scanner-action@v2.3.8
