@@ -13,8 +13,9 @@ void main() {
   testWidgets('Smoke test: Verify home screen message', (tester) async {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
 
     // Verify that our welcome message is displayed.
-    expect(find.text('Welcome to ilithid RPG Helper'), findsOneWidget);
+    expect(find.text('Welcome to ilithid!'), findsOneWidget);
   });
 }

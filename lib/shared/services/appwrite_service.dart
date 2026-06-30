@@ -1,5 +1,22 @@
 import 'package:appwrite/appwrite.dart';
 
+const String _appwriteEndpoint = String.fromEnvironment(
+  'APPWRITE_ENDPOINT',
+  defaultValue: 'https://appwrite.tuxedorat.com/v1',
+);
+
+const String _appwriteProjectId = String.fromEnvironment(
+  'APPWRITE_PROJECT_ID',
+  defaultValue: '6a43a7b5003097eaaf1f',
+);
+
 final Client client = Client()
-    .setProject('6a43a7b5003097eaaf1f')
-    .setEndpoint('https://appwrite.tuxedorat.com/v1');
+  ..setEndpoint(_appwriteEndpoint)
+  ..setProject(_appwriteProjectId);
+
+class AppwriteService {
+  /// Initializes the client (configurations are baked in from environment variables).
+  static Future<void> initialize() async {
+    // Client is pre-configured via global variable instantiation.
+  }
+}
