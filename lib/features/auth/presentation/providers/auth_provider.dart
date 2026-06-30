@@ -1,12 +1,11 @@
 import 'package:appwrite/appwrite.dart';
+import 'package:appwrite/models.dart' as models;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ilithid/features/auth/presentation/providers/auth_state.dart';
 import 'package:ilithid/shared/services/appwrite_service.dart';
 
 final appwriteAccountProvider = Provider<Account>((ref) => Account(client));
-final appwriteDatabasesProvider = Provider<Databases>(
-  (ref) => Databases(client),
-);
+final appwriteTablesDbProvider = Provider<TablesDB>((ref) => TablesDB(client));
 
 final authProvider = NotifierProvider<AuthNotifier, AuthState>(() {
   return AuthNotifier();
@@ -14,12 +13,12 @@ final authProvider = NotifierProvider<AuthNotifier, AuthState>(() {
 
 class AuthNotifier extends Notifier<AuthState> {
   late Account _account;
-  late Databases _databases;
+  late TablesDB _tablesDb;
 
   @override
   AuthState build() {
     _account = ref.watch(appwriteAccountProvider);
-    _databases = ref.watch(appwriteDatabasesProvider);
+    _tablesDb = ref.watch(appwriteTablesDbProvider);
     // Check session on startup.
     checkSession();
     return AuthState.initial();
@@ -31,13 +30,13 @@ class AuthNotifier extends Notifier<AuthState> {
     try {
       final user = await _account.get();
 
-      // Attempt to retrieve the profile document
+      // Attempt to retrieve the profile row
       String displayName = user.name;
       try {
-        final profile = await _databases.getDocument(
+        final profile = await _tablesDb.getRow(
           databaseId: appwriteDatabaseId,
-          collectionId: appwriteProfilesCollectionId,
-          documentId: user.$id,
+          tableId: appwriteProfilesTableId,
+          rowId: user.$id,
         );
         displayName = (profile.data['displayName'] as String?) ?? user.name;
       } catch (_) {
@@ -59,13 +58,13 @@ class AuthNotifier extends Notifier<AuthState> {
       );
       final user = await _account.get();
 
-      // Retrieve display name from profile collection
+      // Retrieve display name from profile table
       String displayName = user.name;
       try {
-        final profile = await _databases.getDocument(
+        final profile = await _tablesDb.getRow(
           databaseId: appwriteDatabaseId,
-          collectionId: appwriteProfilesCollectionId,
-          documentId: user.$id,
+          tableId: appwriteProfilesTableId,
+          rowId: user.$id,
         );
         displayName = (profile.data['displayName'] as String?) ?? user.name;
       } catch (_) {
@@ -102,12 +101,12 @@ class AuthNotifier extends Notifier<AuthState> {
       );
       final user = await _account.get();
 
-      // Create profile document
+      // Create profile row
       try {
-        await _databases.createDocument(
+        await _tablesDb.createRow(
           databaseId: appwriteDatabaseId,
-          collectionId: appwriteProfilesCollectionId,
-          documentId: user.$id,
+          tableId: appwriteProfilesTableId,
+          rowId: user.$id,
           data: <String, dynamic>{
             'userId': user.$id,
             'displayName': displayName,
@@ -115,7 +114,7 @@ class AuthNotifier extends Notifier<AuthState> {
           },
         );
       } catch (_) {
-        // Even if document creation fails, we logged in successfully
+        // Even if row creation fails, we logged in successfully
       }
 
       state = AuthState.authenticated(user, displayName);
@@ -138,3 +137,6 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 }
+
+// Keep a typed alias for backward compatibility in tests.
+typedef AppwriteRow = models.Row;

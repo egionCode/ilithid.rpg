@@ -19,8 +19,8 @@ const String appwriteDatabaseId = String.fromEnvironment(
   defaultValue: 'main',
 );
 
-const String appwriteProfilesCollectionId = String.fromEnvironment(
-  'APPWRITE_PROFILES_COLLECTION_ID',
+const String appwriteProfilesTableId = String.fromEnvironment(
+  'APPWRITE_PROFILES_TABLE_ID',
   defaultValue: 'profiles',
 );
 

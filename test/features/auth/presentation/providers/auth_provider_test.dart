@@ -8,21 +8,21 @@ import 'package:mocktail/mocktail.dart';
 
 class MockAccount extends Mock implements Account {}
 
-class MockDatabases extends Mock implements Databases {}
+class MockTablesDB extends Mock implements TablesDB {}
 
 void main() {
   late MockAccount mockAccount;
-  late MockDatabases mockDatabases;
+  late MockTablesDB mockTablesDb;
   late ProviderContainer container;
 
   setUp(() {
     mockAccount = MockAccount();
-    mockDatabases = MockDatabases();
+    mockTablesDb = MockTablesDB();
 
     container = ProviderContainer(
       overrides: [
         appwriteAccountProvider.overrideWithValue(mockAccount),
-        appwriteDatabasesProvider.overrideWithValue(mockDatabases),
+        appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
       ],
     );
   });
@@ -30,6 +30,23 @@ void main() {
   tearDown(() {
     container.dispose();
   });
+
+  /// Helper to build a [models.Row] for tests.
+  models.Row buildRow({
+    String id = 'user_123',
+    String displayName = 'Legolas',
+  }) {
+    return models.Row.fromMap({
+      '\$id': id,
+      '\$tableId': 'profiles',
+      '\$databaseId': 'main',
+      '\$createdAt': '',
+      '\$updatedAt': '',
+      '\$permissions': <String>[],
+      '\$sequence': 0,
+      'displayName': displayName,
+    });
+  }
 
   group('AuthNotifier Tests with Riverpod Container', () {
     test(
@@ -54,25 +71,14 @@ void main() {
           'targets': <Map<String, dynamic>>[],
         });
 
-        final document = models.Document.fromMap({
-          '\$id': 'user_123',
-          '\$collectionId': 'profiles',
-          '\$databaseId': 'main',
-          '\$createdAt': '',
-          '\$updatedAt': '',
-          '\$permissions': <String>[],
-          '\$sequence': 0,
-          'displayName': 'Legolas',
-        });
-
         when(() => mockAccount.get()).thenAnswer((_) async => user);
         when(
-          () => mockDatabases.getDocument(
+          () => mockTablesDb.getRow(
             databaseId: any(named: 'databaseId'),
-            collectionId: any(named: 'collectionId'),
-            documentId: any(named: 'documentId'),
+            tableId: any(named: 'tableId'),
+            rowId: any(named: 'rowId'),
           ),
-        ).thenAnswer((_) async => document);
+        ).thenAnswer((_) async => buildRow());
 
         // Trigger session check manually since our setup overrides the providers
         await container.read(authProvider.notifier).checkSession();
@@ -152,10 +158,10 @@ void main() {
 
       when(() => mockAccount.get()).thenAnswer((_) async => user);
       when(
-        () => mockDatabases.getDocument(
+        () => mockTablesDb.getRow(
           databaseId: any(named: 'databaseId'),
-          collectionId: any(named: 'collectionId'),
-          documentId: any(named: 'documentId'),
+          tableId: any(named: 'tableId'),
+          rowId: any(named: 'rowId'),
         ),
       ).thenThrow(AppwriteException('No profile', 404));
 
@@ -230,17 +236,6 @@ void main() {
         'current': true,
       });
 
-      final document = models.Document.fromMap({
-        '\$id': 'user_123',
-        '\$collectionId': 'profiles',
-        '\$databaseId': 'main',
-        '\$createdAt': '',
-        '\$updatedAt': '',
-        '\$permissions': <String>[],
-        '\$sequence': 0,
-        'displayName': 'Aragorn',
-      });
-
       when(
         () => mockAccount.create(
           userId: any(named: 'userId'),
@@ -260,13 +255,13 @@ void main() {
       when(() => mockAccount.get()).thenAnswer((_) async => user);
 
       when(
-        () => mockDatabases.createDocument(
+        () => mockTablesDb.createRow(
           databaseId: any(named: 'databaseId'),
-          collectionId: any(named: 'collectionId'),
-          documentId: any(named: 'documentId'),
+          tableId: any(named: 'tableId'),
+          rowId: any(named: 'rowId'),
           data: any(named: 'data'),
         ),
-      ).thenAnswer((_) async => document);
+      ).thenAnswer((_) async => buildRow(displayName: 'Aragorn'));
 
       await container
           .read(authProvider.notifier)
