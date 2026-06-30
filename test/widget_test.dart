@@ -10,11 +10,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ilithid/main.dart';
 
 void main() {
-  testWidgets('Smoke test: Verify home screen message', (tester) async {
+  testWidgets('Smoke test: Verify server config screen loaded on start', (tester) async {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
 
-    // Verify that our welcome message is displayed.
-    expect(find.text('Welcome to ilithid RPG Helper'), findsOneWidget);
+    // Verify that our server configuration header is displayed.
+    expect(find.text('Server Configuration'), findsOneWidget);
   });
 }

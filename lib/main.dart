@@ -1,8 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ilithid/shared/routing/app_router.dart';
 import 'package:ilithid/shared/services/appwrite_service.dart';
+import 'package:ilithid/shared/theme/app_theme.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Appwrite Service configuration
+  await AppwriteService.initialize();
+
+  runApp(
+    const ProviderScope(
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -10,26 +22,11 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'ilithid',
-      theme: ThemeData.dark(),
-      home: Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('Welcome to ilithid RPG Helper'),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  client.ping();
-                },
-                child: const Text('Send a ping'),
-              ),
-            ],
-          ),
-        ),
-      ),
+      theme: AppTheme.darkTheme,
+      routerConfig: AppRouter.router,
+      debugShowCheckedModeBanner: false,
     );
   }
 }
