@@ -19,6 +19,11 @@ Este arquivo contém as regras e diretrizes para o desenvolvimento da aplicaçã
 ## Workflow & Processos
 - **Novas Regras / New Rules**: Quando for solicitado adicionar novas regras, utilize e atualize sempre o arquivo [AGENTS.md](file:///mnt/ssd/projetos/rpg_helper/.agents/AGENTS.md).
 - **Novas Features / New Features**: Quando for solicitado adicionar uma nova feature, deve ser criada uma nova task no GitHub Projects.
+- **Estratégia de Branching (GitHub Flow)**:
+  - Todo desenvolvimento deve ser feito em branches ramificadas a partir da `main` (ex: `feature/nome-da-feature`).
+  - O merge na branch `main` deve ser realizado exclusivamente via Pull Requests.
+  - A branch `main` sempre deve conter um estado estável pronto para produção.
+
 
 ## Diretrizes de Teste
 - **Testes Unitários**: Para cada iteração do sistema, deve ser criado obrigatoriamente um teste unitário para validação de regras de negócio.
