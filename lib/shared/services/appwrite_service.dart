@@ -14,6 +14,16 @@ final Client client = Client()
   ..setEndpoint(_appwriteEndpoint)
   ..setProject(_appwriteProjectId);
 
+const String appwriteDatabaseId = String.fromEnvironment(
+  'APPWRITE_DATABASE_ID',
+  defaultValue: 'main',
+);
+
+const String appwriteProfilesTableId = String.fromEnvironment(
+  'APPWRITE_PROFILES_TABLE_ID',
+  defaultValue: 'profiles',
+);
+
 class AppwriteService {
   /// Initializes the client (configurations are baked in from environment variables).
   static Future<void> initialize() async {
