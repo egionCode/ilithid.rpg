@@ -24,6 +24,7 @@ Este arquivo contém as regras e diretrizes para o desenvolvimento da aplicaçã
   - Ao iniciar o desenvolvimento de qualquer tarefa/issue, o status da mesma no GitHub Projects deve ser obrigatoriamente alterado para **In Progress** (Em progresso).
   - O assistente pode marcar (ticar) as checklists/subtasks de cada issue conforme finalizar os itens.
   - A issue em si e o card no board não devem ser fechados ou movidos para o status **Done** (Concluído) pelo assistente, deixando essa etapa de verificação e encerramento para o usuário.
+- **Execução do Aplicativo (Hot Reload)**: Ao iniciar o desenvolvimento de qualquer tarefa, o assistente deve verificar se o aplicativo está rodando em segundo plano (em Web e Android). Caso não esteja, deve iniciar a execução do aplicativo (abrindo o emulador Android se necessário) para permitir feedback visual rápido e Hot Reloads automáticos.
 - **Estratégia de Branching (GitHub Flow)**:
 
   - Todo desenvolvimento deve ser feito em branches ramificadas a partir da `main` (ex: `feature/nome-da-feature`).
