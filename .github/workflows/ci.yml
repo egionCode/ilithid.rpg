@@ -39,5 +39,7 @@ jobs:
       - name: Run Unit & Widget Tests
         run: flutter test
 
-      - name: Run Security Scan (OSV-Scanner)
-        uses: google/osv-scanner-action@v2.3.8
+      - name: Run Security Scan (OSV-Scanner CLI)
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/google/osv-scanner/main/scripts/bootstrap.sh | sh -s -- -b .
+          ./osv-scanner --recursive ./

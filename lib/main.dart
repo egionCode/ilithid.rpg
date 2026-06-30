@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ilithid/shared/services/appwrite_service.dart';
 
 void main() {
   runApp(const MyApp());
@@ -12,9 +13,21 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'ilithid',
       theme: ThemeData.dark(),
-      home: const Scaffold(
+      home: Scaffold(
         body: Center(
-          child: Text('Welcome to ilithid RPG Helper'),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('Welcome to ilithid RPG Helper'),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  client.ping();
+                },
+                child: const Text('Send a ping'),
+              ),
+            ],
+          ),
         ),
       ),
     );
