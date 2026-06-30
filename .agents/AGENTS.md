@@ -34,4 +34,10 @@ Este arquivo contém as regras e diretrizes para o desenvolvimento da aplicaçã
   - Podem ser estruturados e criados por Epics (não há necessidade de cobrir E2E para absolutamente tudo, focando nos fluxos críticos).
 - **Interfaces Web**: Em interfaces Web, utilize testes de integração e validação.
 
+## Formatação & Qualidade de Código (Linting)
+- **Formatação de Código**: Todo código fonte gerado ou modificado deve obrigatoriamente ser formatado utilizando o comando `dart format .` antes de ser commitado.
+- **Análise Estática Rigorosa**: O linter do Dart (`flutter analyze`) deve rodar com sucesso em ambiente local, sem apresentar erros ou avisos (warnings), em total conformidade com as regras configuradas no `analysis_options.yaml`.
+- **Prevenção de Quebras de CI**: A verificação de formatação e análise estática deve ser executada localmente antes da abertura ou atualização de qualquer Pull Request (evitando quebras do workflow de CI).
+
+
 
