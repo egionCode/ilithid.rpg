@@ -28,7 +28,9 @@ Este arquivo contém as regras e diretrizes para o desenvolvimento da aplicaçã
   - O merge na branch `main` deve ser realizado exclusivamente via Pull Requests.
   - A branch `main` sempre deve conter um estado estável pronto para produção.
   - **Labels em Pull Requests**: Todos os Pull Requests criados devem conter obrigatoriamente as labels correspondentes ao tipo de alteração (ex: `feature`, `bug`, `chore`, `documentation`, `tests`).
+  - **Abertura de Pull Requests**: O assistente de IA nunca deve criar ou abrir um Pull Request no GitHub automaticamente. A abertura de qualquer Pull Request deve ser autorizada explicitamente pelo usuário.
 - **Versões de Dependências**: Sempre busque e utilize as versões estáveis mais atualizadas de pacotes e dependências de terceiros (ex: dependências no `pubspec.yaml`, ações/workflows do GitHub Actions, etc.).
+
 
 
 
