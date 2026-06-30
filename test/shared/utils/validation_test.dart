@@ -26,7 +26,10 @@ void main() {
 
     test('should return false for invalid hexadecimal campaign IDs', () {
       expect(ValidationUtils.isValidHexId('a1b2c'), isFalse); // too short
-      expect(ValidationUtils.isValidHexId('xyz123'), isFalse); // non-hex characters
+      expect(
+        ValidationUtils.isValidHexId('xyz123'),
+        isFalse,
+      ); // non-hex characters
       expect(ValidationUtils.isValidHexId(''), isFalse);
     });
   });
