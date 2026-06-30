@@ -1,0 +1,30 @@
+# Regras do Projeto (AGENTS.md)
+
+Este arquivo contém as regras e diretrizes para o desenvolvimento da aplicação.
+
+## Diretrizes Gerais
+- **Nome do App**: O nome da aplicação é **ilithid**.
+- Manter o código limpo, legível e bem documentado.
+- Seguir os padrões e convenções da linguagem do projeto.
+- **Idioma**: Todo o código (variáveis, comentários, funções, classes, etc.) deve ser escrito em **Inglês**.
+- **Credenciais**: Utilizar as credenciais especificadas no arquivo [credentials.md](file:///mnt/ssd/projetos/rpg_helper/docs/credentials.md).
+- **Boas Práticas**: Seguir as boas práticas recomendadas de Flutter.
+
+## Arquitetura do Projeto
+- **Feature Layer**: A estrutura de pastas deve seguir uma arquitetura orientada a features para melhor modularidade.
+- **Shared/Compartilhado**:
+  - Código reutilizado/repetido deve ser movido para a pasta `shared`.
+  - A pasta `shared` deve ser organizada por domínios de atuação (ex: `shared/components`, `shared/services`, etc.).
+
+## Workflow & Processos
+- **Novas Regras / New Rules**: Quando for solicitado adicionar novas regras, utilize e atualize sempre o arquivo [AGENTS.md](file:///mnt/ssd/projetos/rpg_helper/.agents/AGENTS.md).
+- **Novas Features / New Features**: Quando for solicitado adicionar uma nova feature, deve ser criada uma nova task no GitHub Projects.
+
+## Diretrizes de Teste
+- **Testes Unitários**: Para cada iteração do sistema, deve ser criado obrigatoriamente um teste unitário para validação de regras de negócio.
+- **Testes E2E (End-to-End)**:
+  - Devem ser executados antes de realizar qualquer commit.
+  - Podem ser estruturados e criados por Epics (não há necessidade de cobrir E2E para absolutamente tudo, focando nos fluxos críticos).
+- **Interfaces Web**: Em interfaces Web, utilize testes de integração e validação.
+
+
