@@ -21,8 +21,8 @@ Este arquivo contém as regras e diretrizes para o desenvolvimento da aplicaçã
 - **Novas Regras / New Rules**: Quando for solicitado adicionar novas regras, utilize e atualize sempre o arquivo [AGENTS.md](file:///mnt/ssd/projetos/rpg_helper/.agents/AGENTS.md).
 - **Novas Features / New Features**: Quando for solicitado adicionar uma nova feature, deve ser criada uma nova task no GitHub Projects.
 - **Gestão de Tarefas (GitHub Projects)**:
-  - Ao iniciar o desenvolvimento de qualquer tarefa/issue, o status da mesma no GitHub Projects deve ser obrigatoriamente alterado para **In Progress** (Em progresso).
-  - O assistente pode marcar (ticar) as checklists/subtasks de cada issue conforme finalizar os itens.
+  - **CRÍTICO**: Ao iniciar o desenvolvimento de qualquer tarefa/issue, o status da mesma no GitHub Projects deve ser **IMEDIATAMENTE** alterado para **In Progress** (Em progresso), antes de qualquer modificação de código ser iniciada.
+  - O assistente deve atualizar obrigatoriamente as checklists/subtasks (marcar `- [x]`) no corpo das issues correspondentes no GitHub assim que cada subtask for finalizada.
   - A issue em si e o card no board não devem ser fechados ou movidos para o status **Done** (Concluído) pelo assistente, deixando essa etapa de verificação e encerramento para o usuário.
 - **Execução do Aplicativo (Hot Reload)**: Ao iniciar o desenvolvimento de qualquer tarefa, o assistente deve verificar se o aplicativo está rodando em segundo plano (em Web e Android). Caso não esteja, deve iniciar a execução do aplicativo (abrindo o emulador Android se necessário) para permitir feedback visual rápido e Hot Reloads automáticos.
 - **Estratégia de Branching (GitHub Flow)**:
