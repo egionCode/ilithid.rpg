@@ -12,9 +12,19 @@ class AppColors {
   static const Color textMuted = Color(0xFF646473);
 
   // Accents and Functional Colors
-  static const Color damage = Color(0xFFFF4E4E);       // Red for damage / critical indicators
-  static const Color heal = Color(0xFF2ECC71);         // Green for health recovery / success
-  static const Color tempHp = Color(0xFF3498DB);       // Blue for temporary Hit Points
-  static const Color masterMagic = Color(0xFF8E44AD);  // Purple for GM or magic accents
-  static const Color primary = Color(0xFFE67E22);      // Orange accent for main buttons/active actions
+  static const Color damage = Color(
+    0xFFFF4E4E,
+  ); // Red for damage / critical indicators
+  static const Color heal = Color(
+    0xFF2ECC71,
+  ); // Green for health recovery / success
+  static const Color tempHp = Color(
+    0xFF3498DB,
+  ); // Blue for temporary Hit Points
+  static const Color masterMagic = Color(
+    0xFF8E44AD,
+  ); // Purple for GM or magic accents
+  static const Color primary = Color(
+    0xFFE67E22,
+  ); // Orange accent for main buttons/active actions
 }

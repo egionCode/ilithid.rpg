@@ -47,3 +47,7 @@ app.*.map.json
 # Appwrite credentials
 docs/credentials.md
 
+# Environment configuration
+.env
+
+

@@ -72,10 +72,7 @@ class AppButton extends StatelessWidget {
     );
 
     if (fullWidth) {
-      return SizedBox(
-        width: double.infinity,
-        child: button,
-      );
+      return SizedBox(width: double.infinity, child: button);
     }
 
     return button;

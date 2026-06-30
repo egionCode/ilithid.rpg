@@ -8,6 +8,7 @@ Este arquivo contém as regras e diretrizes para o desenvolvimento da aplicaçã
 - Seguir os padrões e convenções da linguagem do projeto.
 - **Idioma**: Todo o código (variáveis, comentários, funções, classes, etc.) deve ser escrito em **Inglês**.
 - **Credenciais**: Utilizar as credenciais especificadas no arquivo [credentials.md](file:///mnt/ssd/projetos/rpg_helper/docs/credentials.md).
+- **Configurações e Env**: Usar arquivo `.env` (que deve ser ignorado no `.gitignore`) para armazenar dados sensíveis (como chaves de API) e URLs de endpoints de servidores. Esses valores devem ser carregados em tempo de compilação (ex: via `String.fromEnvironment` / `--dart-define-from-file`) para gerar os artefatos de build.
 - **Boas Práticas**: Seguir as boas práticas recomendadas de Flutter.
 
 ## Arquitetura do Projeto
@@ -21,7 +22,8 @@ Este arquivo contém as regras e diretrizes para o desenvolvimento da aplicaçã
 - **Novas Features / New Features**: Quando for solicitado adicionar uma nova feature, deve ser criada uma nova task no GitHub Projects.
 - **Gestão de Tarefas (GitHub Projects)**:
   - Ao iniciar o desenvolvimento de qualquer tarefa/issue, o status da mesma no GitHub Projects deve ser obrigatoriamente alterado para **In Progress** (Em progresso).
-  - A movimentação de qualquer tarefa para o status **Done** (Concluído) deve ser deixada para o usuário verificar e realizar.
+  - O assistente pode marcar (ticar) as checklists/subtasks de cada issue conforme finalizar os itens.
+  - A issue em si e o card no board não devem ser fechados ou movidos para o status **Done** (Concluído) pelo assistente, deixando essa etapa de verificação e encerramento para o usuário.
 - **Estratégia de Branching (GitHub Flow)**:
 
   - Todo desenvolvimento deve ser feito em branches ramificadas a partir da `main` (ex: `feature/nome-da-feature`).

@@ -41,10 +41,7 @@ class AdaptiveScaffold extends StatelessWidget {
               onDestinationSelected: onDestinationSelected,
               destinations: destinations
                   .map(
-                    (d) => NavigationDestination(
-                      icon: d.icon,
-                      label: d.label,
-                    ),
+                    (d) => NavigationDestination(icon: d.icon, label: d.label),
                   )
                   .toList(),
             ),
@@ -115,8 +112,12 @@ class AdaptiveScaffold extends StatelessWidget {
                               title: Text(
                                 d.label,
                                 style: TextStyle(
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                  color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  color: isSelected
+                                      ? AppColors.primary
+                                      : AppColors.textSecondary,
                                 ),
                               ),
                               selected: isSelected,

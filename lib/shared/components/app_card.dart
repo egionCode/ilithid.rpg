@@ -16,10 +16,7 @@ class AppCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       margin: margin,
-      child: Padding(
-        padding: padding,
-        child: child,
-      ),
+      child: Padding(padding: padding, child: child),
     );
   }
 }
