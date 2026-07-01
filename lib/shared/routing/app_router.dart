@@ -5,6 +5,8 @@ import 'package:ilithid/features/auth/presentation/providers/auth_provider.dart'
 import 'package:ilithid/features/auth/presentation/providers/auth_state.dart';
 import 'package:ilithid/features/auth/presentation/screens/login_screen.dart';
 import 'package:ilithid/features/auth/presentation/screens/register_screen.dart';
+import 'package:ilithid/features/campaigns/presentation/screens/create_campaign_screen.dart';
+import 'package:ilithid/features/dashboard/presentation/screens/campaign_dashboard_screen.dart';
 import 'package:ilithid/shared/components/app_button.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -49,6 +51,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const RegisterScreen(),
       ),
       GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
+      GoRoute(
+        path: '/campaigns/new',
+        builder: (context, state) => const CreateCampaignScreen(),
+      ),
+      GoRoute(
+        path: '/campaigns/:hexId',
+        builder: (context, state) {
+          final hexId = state.pathParameters['hexId'] ?? '';
+          return CampaignDashboardScreen(hexId: hexId);
+        },
+      ),
     ],
   );
 });
@@ -88,6 +101,11 @@ class HomeScreen extends ConsumerWidget {
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 32),
+              AppButton(
+                onPressed: () => context.go('/campaigns/new'),
+                child: const Text('Create Campaign'),
+              ),
+              const SizedBox(height: 16),
               AppButton(
                 onPressed: () {
                   ref.read<AuthNotifier>(authProvider.notifier).logout();
