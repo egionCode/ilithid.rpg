@@ -72,6 +72,19 @@ void main() {
 
   setUp(() {
     mockTablesDb = MockTablesDB();
+    // Register default stub to prevent type errors on automatic reactive fetches
+    when(
+      () => mockTablesDb.listRows(
+        databaseId: any(named: 'databaseId'),
+        tableId: any(named: 'tableId'),
+        queries: any(named: 'queries'),
+      ),
+    ).thenAnswer(
+      (_) async => models.RowList.fromMap({
+        'total': 0,
+        'rows': <Map<String, dynamic>>[],
+      }),
+    );
   });
 
   tearDown(() {
@@ -163,6 +176,9 @@ void main() {
           );
         });
 
+        // Allow the automatic reactive fetch to complete first
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
         final campaign = await container
             .read(campaignsProvider.notifier)
             .createCampaign('Phandelver');
@@ -176,7 +192,8 @@ void main() {
         expect(state.status, equals(CampaignsStatus.success));
         expect(state.newCampaign, equals(campaign));
         expect(state.campaigns.length, equals(1));
-        expect(state.campaigns.first, equals(campaign));
+        expect(state.campaigns.first.campaign, equals(campaign));
+        expect(state.campaigns.first.role, equals('gm'));
 
         verify(
           () => mockTablesDb.createRow(
@@ -233,7 +250,13 @@ void main() {
           rowId: any(named: 'rowId'),
           data: any(named: 'data'),
         ),
-      ).thenThrow(AppwriteException('Database error', 500));
+      ).thenAnswer(
+        (_) =>
+            Future<models.Row>.error(AppwriteException('Database error', 500)),
+      );
+
+      // Allow the automatic reactive fetch to complete first
+      await Future<void>.delayed(const Duration(milliseconds: 10));
 
       final result = await container
           .read(campaignsProvider.notifier)
@@ -244,6 +267,218 @@ void main() {
       expect(state.status, equals(CampaignsStatus.error));
       expect(state.errorMessage, equals('Database error'));
     });
+    test('fetchCampaigns should succeed and load user campaigns', () async {
+      final mockUser = models.User.fromMap({
+        '\$id': 'user_gm_123',
+        '\$createdAt': '',
+        '\$updatedAt': '',
+        'name': 'Garen',
+        'email': 'garen@demacia.com',
+        'phone': '',
+        'emailVerification': false,
+        'phoneVerification': false,
+        'status': true,
+        'labels': <String>[],
+        'passwordUpdate': '',
+        'registration': '',
+        'accessedAt': '',
+        'prefs': <String, dynamic>{},
+        'mfa': false,
+        'targets': <Map<String, dynamic>>[],
+      });
+      final authenticatedState = AuthState.authenticated(mockUser, 'Garen');
+
+      container = ProviderContainer(
+        overrides: [
+          appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+          authProvider.overrideWith(() => FakeAuthNotifier(authenticatedState)),
+        ],
+      );
+
+      // Mock listRows to return one member row
+      when(
+        () => mockTablesDb.listRows(
+          databaseId: any(named: 'databaseId'),
+          tableId: appwriteCampaignMembersTableId,
+          queries: any(named: 'queries'),
+        ),
+      ).thenAnswer(
+        (_) async => models.RowList.fromMap({
+          'total': 1,
+          'rows': [
+            buildMemberRow(
+              id: 'member_123',
+              campaignId: 'campaign_abc',
+              userId: 'user_gm_123',
+            ).toMap(),
+          ],
+        }),
+      );
+
+      // Mock getRow to return the campaign row
+      when(
+        () => mockTablesDb.getRow(
+          databaseId: any(named: 'databaseId'),
+          tableId: appwriteCampaignsTableId,
+          rowId: 'campaign_abc',
+        ),
+      ).thenAnswer(
+        (_) async => buildCampaignRow(
+          id: 'campaign_abc',
+          name: 'Phandelver',
+          hexId: 'abc12345',
+          gmUserId: 'user_gm_123',
+        ),
+      );
+
+      await container.read(campaignsProvider.notifier).fetchCampaigns();
+
+      final state = container.read(campaignsProvider);
+      expect(state.status, equals(CampaignsStatus.success));
+      expect(state.campaigns.length, equals(1));
+      expect(state.campaigns.first.campaign.name, equals('Phandelver'));
+      expect(state.campaigns.first.role, equals('gm'));
+    });
+
+    test(
+      'fetchCampaigns should skip corrupted campaign references gracefully',
+      () async {
+        final mockUser = models.User.fromMap({
+          '\$id': 'user_gm_123',
+          '\$createdAt': '',
+          '\$updatedAt': '',
+          'name': 'Garen',
+          'email': 'garen@demacia.com',
+          'phone': '',
+          'emailVerification': false,
+          'phoneVerification': false,
+          'status': true,
+          'labels': <String>[],
+          'passwordUpdate': '',
+          'registration': '',
+          'accessedAt': '',
+          'prefs': <String, dynamic>{},
+          'mfa': false,
+          'targets': <Map<String, dynamic>>[],
+        });
+        final authenticatedState = AuthState.authenticated(mockUser, 'Garen');
+
+        container = ProviderContainer(
+          overrides: [
+            appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+            authProvider.overrideWith(
+              () => FakeAuthNotifier(authenticatedState),
+            ),
+          ],
+        );
+
+        // Mock listRows to return two membership rows
+        when(
+          () => mockTablesDb.listRows(
+            databaseId: any(named: 'databaseId'),
+            tableId: appwriteCampaignMembersTableId,
+            queries: any(named: 'queries'),
+          ),
+        ).thenAnswer(
+          (_) async => models.RowList.fromMap({
+            'total': 2,
+            'rows': [
+              buildMemberRow(
+                id: 'member_1',
+                campaignId: 'campaign_valid',
+                userId: 'user_gm_123',
+              ).toMap(),
+              buildMemberRow(
+                id: 'member_2',
+                campaignId: 'campaign_corrupt',
+                userId: 'user_gm_123',
+              ).toMap(),
+            ],
+          }),
+        );
+
+        // Mock getRow for valid campaign
+        when(
+          () => mockTablesDb.getRow(
+            databaseId: any(named: 'databaseId'),
+            tableId: appwriteCampaignsTableId,
+            rowId: 'campaign_valid',
+          ),
+        ).thenAnswer(
+          (_) async => buildCampaignRow(
+            id: 'campaign_valid',
+            hexId: 'valid123',
+            name: 'Valid Campaign',
+            gmUserId: 'user_gm_123',
+          ),
+        );
+
+        // Mock getRow for corrupt campaign to throw exception
+        when(
+          () => mockTablesDb.getRow(
+            databaseId: any(named: 'databaseId'),
+            tableId: appwriteCampaignsTableId,
+            rowId: 'campaign_corrupt',
+          ),
+        ).thenThrow(AppwriteException('Campaign not found', 404));
+
+        await container.read(campaignsProvider.notifier).fetchCampaigns();
+
+        final state = container.read(campaignsProvider);
+        expect(state.status, equals(CampaignsStatus.success));
+        expect(state.campaigns.length, equals(1));
+        expect(state.campaigns.first.campaign.id, equals('campaign_valid'));
+      },
+    );
+
+    test(
+      'fetchCampaigns should handle list failure and report error',
+      () async {
+        final mockUser = models.User.fromMap({
+          '\$id': 'user_gm_123',
+          '\$createdAt': '',
+          '\$updatedAt': '',
+          'name': 'Garen',
+          'email': 'garen@demacia.com',
+          'phone': '',
+          'emailVerification': false,
+          'phoneVerification': false,
+          'status': true,
+          'labels': <String>[],
+          'passwordUpdate': '',
+          'registration': '',
+          'accessedAt': '',
+          'prefs': <String, dynamic>{},
+          'mfa': false,
+          'targets': <Map<String, dynamic>>[],
+        });
+        final authenticatedState = AuthState.authenticated(mockUser, 'Garen');
+
+        container = ProviderContainer(
+          overrides: [
+            appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+            authProvider.overrideWith(
+              () => FakeAuthNotifier(authenticatedState),
+            ),
+          ],
+        );
+
+        when(
+          () => mockTablesDb.listRows(
+            databaseId: any(named: 'databaseId'),
+            tableId: appwriteCampaignMembersTableId,
+            queries: any(named: 'queries'),
+          ),
+        ).thenThrow(AppwriteException('Network Timeout', 408));
+
+        await container.read(campaignsProvider.notifier).fetchCampaigns();
+
+        final state = container.read(campaignsProvider);
+        expect(state.status, equals(CampaignsStatus.error));
+        expect(state.errorMessage, equals('Network Timeout'));
+      },
+    );
+
     group('Verification Matchers', () {
       test('fake match registration for eq', () {});
     });

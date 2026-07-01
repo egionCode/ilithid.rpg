@@ -2,7 +2,10 @@ import 'dart:math';
 import 'package:appwrite/appwrite.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ilithid/features/auth/presentation/providers/auth_provider.dart';
+import 'package:ilithid/features/auth/presentation/providers/auth_state.dart';
 import 'package:ilithid/features/campaigns/domain/campaign.dart';
+import 'package:ilithid/features/campaigns/domain/campaign_member.dart';
+import 'package:ilithid/features/campaigns/domain/user_campaign.dart';
 import 'package:ilithid/features/campaigns/presentation/providers/campaigns_state.dart';
 import 'package:ilithid/shared/services/appwrite_service.dart';
 
@@ -18,6 +21,15 @@ class CampaignsNotifier extends Notifier<CampaignsState> {
   @override
   CampaignsState build() {
     _tablesDb = ref.watch(appwriteTablesDbProvider);
+
+    // Reactively watch authentication state
+    final authState = ref.watch(authProvider);
+    if (authState.status == AuthStatus.authenticated) {
+      Future.microtask(() => fetchCampaigns());
+    } else {
+      return CampaignsState.initial();
+    }
+
     return CampaignsState.initial();
   }
 
@@ -26,6 +38,62 @@ class CampaignsNotifier extends Notifier<CampaignsState> {
     final random = Random();
     const hexChars = '0123456789abcdef';
     return List.generate(8, (index) => hexChars[random.nextInt(16)]).join();
+  }
+
+  /// Fetches all campaigns where the current user is a member.
+  Future<void> fetchCampaigns() async {
+    final authState = ref.read(authProvider);
+    final user = authState.user;
+    if (user == null) {
+      state = CampaignsState.error(
+        'User must be logged in to fetch campaigns.',
+      );
+      return;
+    }
+
+    state = CampaignsState.loading(currentCampaigns: state.campaigns);
+
+    try {
+      final response = await _tablesDb.listRows(
+        databaseId: appwriteDatabaseId,
+        tableId: appwriteCampaignMembersTableId,
+        queries: [Query.equal('userId', user.$id)],
+      );
+
+      final List<UserCampaign> userCampaigns = [];
+
+      for (final row in response.rows) {
+        try {
+          final member = CampaignMember.fromRow(row);
+          final campaignRow = await _tablesDb.getRow(
+            databaseId: appwriteDatabaseId,
+            tableId: appwriteCampaignsTableId,
+            rowId: member.campaignId,
+          );
+          final campaign = Campaign.fromRow(campaignRow);
+          userCampaigns.add(
+            UserCampaign(campaign: campaign, role: member.role),
+          );
+        } catch (e) {
+          // Skip corrupted or deleted campaign rows gracefully
+        }
+      }
+
+      // Sort campaigns by creation date descending
+      userCampaigns.sort(
+        (a, b) => b.campaign.createdAt.compareTo(a.campaign.createdAt),
+      );
+
+      state = CampaignsState.success(userCampaigns);
+    } on AppwriteException catch (e) {
+      final errorMsg = e.message ?? 'Failed to fetch campaigns.';
+      state = CampaignsState.error(errorMsg, currentCampaigns: state.campaigns);
+    } catch (e) {
+      state = CampaignsState.error(
+        e.toString(),
+        currentCampaigns: state.campaigns,
+      );
+    }
   }
 
   /// Creates a new campaign and assigns the creator as the Game Master ('gm').
@@ -81,8 +149,10 @@ class CampaignsNotifier extends Notifier<CampaignsState> {
         data: memberData,
       );
 
-      // 3. Update the state with the new campaign in the list
-      final updatedList = List<Campaign>.from(state.campaigns)..add(campaign);
+      // 3. Update the state with the new campaign in the list (prepend to keep sorted)
+      final userCampaign = UserCampaign(campaign: campaign, role: 'gm');
+      final updatedList = List<UserCampaign>.from(state.campaigns)
+        ..insert(0, userCampaign);
       state = CampaignsState.success(updatedList, newCampaign: campaign);
 
       return campaign;

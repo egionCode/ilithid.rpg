@@ -1,11 +1,12 @@
 import 'package:equatable/equatable.dart';
 import 'package:ilithid/features/campaigns/domain/campaign.dart';
+import 'package:ilithid/features/campaigns/domain/user_campaign.dart';
 
 enum CampaignsStatus { initial, loading, success, error }
 
 class CampaignsState extends Equatable {
   final CampaignsStatus status;
-  final List<Campaign> campaigns;
+  final List<UserCampaign> campaigns;
   final Campaign? newCampaign;
   final String? errorMessage;
 
@@ -20,7 +21,9 @@ class CampaignsState extends Equatable {
     return const CampaignsState(status: CampaignsStatus.initial, campaigns: []);
   }
 
-  factory CampaignsState.loading({List<Campaign> currentCampaigns = const []}) {
+  factory CampaignsState.loading({
+    List<UserCampaign> currentCampaigns = const [],
+  }) {
     return CampaignsState(
       status: CampaignsStatus.loading,
       campaigns: currentCampaigns,
@@ -28,7 +31,7 @@ class CampaignsState extends Equatable {
   }
 
   factory CampaignsState.success(
-    List<Campaign> campaigns, {
+    List<UserCampaign> campaigns, {
     Campaign? newCampaign,
   }) {
     return CampaignsState(
@@ -40,7 +43,7 @@ class CampaignsState extends Equatable {
 
   factory CampaignsState.error(
     String errorMessage, {
-    List<Campaign> currentCampaigns = const [],
+    List<UserCampaign> currentCampaigns = const [],
   }) {
     return CampaignsState(
       status: CampaignsStatus.error,
@@ -51,7 +54,7 @@ class CampaignsState extends Equatable {
 
   CampaignsState copyWith({
     CampaignsStatus? status,
-    List<Campaign>? campaigns,
+    List<UserCampaign>? campaigns,
     Campaign? newCampaign,
     String? errorMessage,
   }) {
