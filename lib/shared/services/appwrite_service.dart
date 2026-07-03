@@ -24,6 +24,21 @@ const String appwriteProfilesTableId = String.fromEnvironment(
   defaultValue: 'profiles',
 );
 
+const String appwriteCampaignsTableId = String.fromEnvironment(
+  'APPWRITE_CAMPAIGNS_TABLE_ID',
+  defaultValue: 'campaigns',
+);
+
+const String appwriteCampaignMembersTableId = String.fromEnvironment(
+  'APPWRITE_CAMPAIGN_MEMBERS_TABLE_ID',
+  defaultValue: 'campaign_members',
+);
+
+const String appwriteCharactersTableId = String.fromEnvironment(
+  'APPWRITE_CHARACTERS_TABLE_ID',
+  defaultValue: 'characters',
+);
+
 class AppwriteService {
   /// Initializes the client (configurations are baked in from environment variables).
   static Future<void> initialize() async {
