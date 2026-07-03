@@ -199,5 +199,189 @@ void main() {
         expect(state.characters.any((c) => c.id == 'char_new'), isTrue);
       },
     );
+
+    test(
+      'updateCharacter should update character sheet successfully',
+      () async {
+        final existingCharRow = buildCharacterRow(
+          id: 'char_abc',
+          userId: 'user_123',
+          name: 'Grog Strongjaw',
+          hpMax: 120,
+          ac: 17,
+        );
+
+        final updatedCharRow = buildCharacterRow(
+          id: 'char_abc',
+          userId: 'user_123',
+          name: 'Grog Grand',
+          hpMax: 150,
+          ac: 18,
+        );
+
+        when(
+          () => mockTablesDb.listRows(
+            databaseId: any(named: 'databaseId'),
+            tableId: any(named: 'tableId'),
+            queries: any(named: 'queries'),
+          ),
+        ).thenAnswer(
+          (_) async => models.RowList.fromMap({
+            'total': 1,
+            'rows': [existingCharRow.toMap()..['\$id'] = 'char_abc'],
+          }),
+        );
+
+        when(
+          () => mockTablesDb.updateRow(
+            databaseId: any(named: 'databaseId'),
+            tableId: any(named: 'tableId'),
+            rowId: any(named: 'rowId'),
+            data: any(named: 'data'),
+          ),
+        ).thenAnswer((_) async => updatedCharRow);
+
+        container = ProviderContainer(
+          overrides: [
+            appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+            authProvider.overrideWith(
+              () => FakeAuthNotifier(authenticatedState),
+            ),
+          ],
+        );
+
+        container.read(charactersProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        final character = await container
+            .read(charactersProvider.notifier)
+            .updateCharacter(
+              'char_abc',
+              name: 'Grog Grand',
+              hpMax: 150,
+              ac: 18,
+            );
+
+        expect(character, isNotNull);
+        expect(character!.name, equals('Grog Grand'));
+        expect(character.hpMax, equals(150));
+
+        final state = container.read(charactersProvider);
+        expect(state.status, equals(CharactersStatus.success));
+        expect(
+          state.characters.firstWhere((c) => c.id == 'char_abc').name,
+          equals('Grog Grand'),
+        );
+      },
+    );
+
+    test(
+      'deleteCharacter should delete character and unlink from campaign members',
+      () async {
+        final existingCharRow = buildCharacterRow(
+          id: 'char_abc',
+          userId: 'user_123',
+          name: 'Grog Strongjaw',
+          hpMax: 120,
+          ac: 17,
+        );
+
+        final memberRow = models.Row.fromMap({
+          '\$id': 'member_999',
+          '\$tableId': 'campaign_members',
+          '\$databaseId': 'main',
+          '\$createdAt': '',
+          '\$updatedAt': '',
+          '\$permissions': <String>[],
+          '\$sequence': 0,
+          'campaignId': 'camp_1',
+          'userId': 'user_123',
+          'activeCharacterId': 'char_abc',
+          'role': 'player',
+          'joinedAt': DateTime.now().toIso8601String(),
+        });
+
+        when(
+          () => mockTablesDb.listRows(
+            databaseId: any(named: 'databaseId'),
+            tableId: any(named: 'tableId'),
+            queries: any(named: 'queries'),
+          ),
+        ).thenAnswer((invocation) async {
+          final tableId = invocation.namedArguments[const Symbol('tableId')];
+          if (tableId == 'characters') {
+            return models.RowList.fromMap({
+              'total': 1,
+              'rows': [existingCharRow.toMap()..['\$id'] = 'char_abc'],
+            });
+          } else if (tableId == 'campaign_members') {
+            return models.RowList.fromMap({
+              'total': 1,
+              'rows': [memberRow.toMap()..['\$id'] = 'member_999'],
+            });
+          }
+          return models.RowList.fromMap({
+            'total': 0,
+            'rows': <Map<String, dynamic>>[],
+          });
+        });
+
+        when(
+          () => mockTablesDb.deleteRow(
+            databaseId: any(named: 'databaseId'),
+            tableId: any(named: 'tableId'),
+            rowId: any(named: 'rowId'),
+          ),
+        ).thenAnswer((_) async => {});
+
+        when(
+          () => mockTablesDb.updateRow(
+            databaseId: any(named: 'databaseId'),
+            tableId: any(named: 'tableId'),
+            rowId: any(named: 'rowId'),
+            data: any(named: 'data'),
+          ),
+        ).thenAnswer((_) async => memberRow);
+
+        container = ProviderContainer(
+          overrides: [
+            appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+            authProvider.overrideWith(
+              () => FakeAuthNotifier(authenticatedState),
+            ),
+          ],
+        );
+
+        container.read(charactersProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        final success = await container
+            .read(charactersProvider.notifier)
+            .deleteCharacter('char_abc');
+
+        expect(success, isTrue);
+
+        verify(
+          () => mockTablesDb.deleteRow(
+            databaseId: any(named: 'databaseId'),
+            tableId: 'characters',
+            rowId: 'char_abc',
+          ),
+        ).called(1);
+
+        verify(
+          () => mockTablesDb.updateRow(
+            databaseId: any(named: 'databaseId'),
+            tableId: 'campaign_members',
+            rowId: 'member_999',
+            data: {'activeCharacterId': null},
+          ),
+        ).called(1);
+
+        final state = container.read(charactersProvider);
+        expect(state.status, equals(CharactersStatus.success));
+        expect(state.characters.any((c) => c.id == 'char_abc'), isFalse);
+      },
+    );
   });
 }

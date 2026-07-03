@@ -273,4 +273,43 @@ class CampaignsNotifier extends Notifier<CampaignsState> {
       return null;
     }
   }
+
+  /// Updates the active character of the current user in a campaign.
+  Future<bool> updateActiveCharacter({
+    required String campaignId,
+    required String? activeCharacterId,
+  }) async {
+    final authState = ref.read(authProvider);
+    final user = authState.user;
+    if (user == null) return false;
+
+    try {
+      final response = await _tablesDb.listRows(
+        databaseId: appwriteDatabaseId,
+        tableId: appwriteCampaignMembersTableId,
+        queries: [
+          Query.equal('campaignId', campaignId),
+          Query.equal('userId', user.$id),
+        ],
+      );
+
+      if (response.rows.isEmpty) {
+        return false;
+      }
+
+      final memberRow = response.rows.first;
+      await _tablesDb.updateRow(
+        databaseId: appwriteDatabaseId,
+        tableId: appwriteCampaignMembersTableId,
+        rowId: memberRow.$id,
+        data: {'activeCharacterId': activeCharacterId},
+      );
+
+      // Re-fetch to update state
+      await fetchCampaigns();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
 }
