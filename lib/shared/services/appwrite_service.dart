@@ -34,6 +34,11 @@ const String appwriteCampaignMembersTableId = String.fromEnvironment(
   defaultValue: 'campaign_members',
 );
 
+const String appwriteCharactersTableId = String.fromEnvironment(
+  'APPWRITE_CHARACTERS_TABLE_ID',
+  defaultValue: 'characters',
+);
+
 class AppwriteService {
   /// Initializes the client (configurations are baked in from environment variables).
   static Future<void> initialize() async {

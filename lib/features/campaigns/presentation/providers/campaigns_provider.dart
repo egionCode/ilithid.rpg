@@ -173,4 +173,104 @@ class CampaignsNotifier extends Notifier<CampaignsState> {
   void clearNewCampaign() {
     state = state.copyWith(newCampaign: null);
   }
+
+  /// Finds a campaign by its hexId.
+  Future<Campaign?> findCampaignByHexId(String hexId) async {
+    try {
+      final response = await _tablesDb.listRows(
+        databaseId: appwriteDatabaseId,
+        tableId: appwriteCampaignsTableId,
+        queries: [Query.equal('hexId', hexId.toLowerCase())],
+      );
+
+      if (response.rows.isEmpty) {
+        return null;
+      }
+
+      return Campaign.fromRow(response.rows.first);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Checks if the current user is already a member of the campaign.
+  Future<CampaignMember?> checkMembership(String campaignId) async {
+    final authState = ref.read(authProvider);
+    final user = authState.user;
+    if (user == null) return null;
+
+    try {
+      final response = await _tablesDb.listRows(
+        databaseId: appwriteDatabaseId,
+        tableId: appwriteCampaignMembersTableId,
+        queries: [
+          Query.equal('campaignId', campaignId),
+          Query.equal('userId', user.$id),
+        ],
+      );
+
+      if (response.rows.isEmpty) {
+        return null;
+      }
+
+      return CampaignMember.fromRow(response.rows.first);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Joins a campaign as a player with an active character sheet.
+  Future<CampaignMember?> joinCampaign({
+    required String campaignId,
+    required String? activeCharacterId,
+  }) async {
+    final authState = ref.read(authProvider);
+    final user = authState.user;
+    if (user == null) {
+      state = CampaignsState.error(
+        'User must be logged in to join campaign.',
+        currentCampaigns: state.campaigns,
+      );
+      return null;
+    }
+
+    state = CampaignsState.loading(currentCampaigns: state.campaigns);
+
+    try {
+      final memberId = ID.unique();
+      final now = DateTime.now().toIso8601String();
+
+      final memberData = {
+        'campaignId': campaignId,
+        'userId': user.$id,
+        'activeCharacterId': activeCharacterId,
+        'role': 'player',
+        'joinedAt': now,
+      };
+
+      final row = await _tablesDb.createRow(
+        databaseId: appwriteDatabaseId,
+        tableId: appwriteCampaignMembersTableId,
+        rowId: memberId,
+        data: memberData,
+      );
+
+      final newMember = CampaignMember.fromRow(row);
+
+      // Re-fetch campaigns to ensure list is fresh
+      await fetchCampaigns();
+
+      return newMember;
+    } on AppwriteException catch (e) {
+      final errorMsg = e.message ?? 'Failed to join campaign.';
+      state = CampaignsState.error(errorMsg, currentCampaigns: state.campaigns);
+      return null;
+    } catch (e) {
+      state = CampaignsState.error(
+        e.toString(),
+        currentCampaigns: state.campaigns,
+      );
+      return null;
+    }
+  }
 }

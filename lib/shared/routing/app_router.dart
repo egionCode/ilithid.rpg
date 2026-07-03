@@ -8,9 +8,11 @@ import 'package:ilithid/features/auth/presentation/screens/register_screen.dart'
 import 'package:ilithid/features/campaigns/presentation/providers/campaigns_provider.dart';
 import 'package:ilithid/features/campaigns/presentation/providers/campaigns_state.dart';
 import 'package:ilithid/features/campaigns/presentation/screens/create_campaign_screen.dart';
+import 'package:ilithid/features/campaigns/presentation/screens/join_campaign_screen.dart';
 import 'package:ilithid/features/dashboard/presentation/screens/campaign_dashboard_screen.dart';
 import 'package:ilithid/shared/components/app_button.dart';
 import 'package:ilithid/shared/components/app_card.dart';
+import 'package:ilithid/shared/state/pending_deep_link_provider.dart';
 import 'package:ilithid/shared/theme/app_colors.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -31,9 +33,31 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       final isLoggingIn = state.matchedLocation == '/login';
       final isRegistering = state.matchedLocation == '/register';
+      final isLoading = state.matchedLocation == '/loading';
 
-      if (status == AuthStatus.initial) {
+      final isDeepLink = state.matchedLocation.startsWith('/join/');
+
+      // Store pending deep link when unauthenticated
+      if (status == AuthStatus.unauthenticated && isDeepLink) {
+        ref.read(pendingDeepLinkProvider.notifier).set(state.matchedLocation);
+        return '/login';
+      }
+
+      // After successful login, navigate to pending deep link if any
+      if (status == AuthStatus.authenticated) {
+        final pending = ref.read(pendingDeepLinkProvider);
+        if (pending != null) {
+          ref.read(pendingDeepLinkProvider.notifier).set(null);
+          return pending;
+        }
+        // Existing auth redirects
+        if (isLoggingIn || isRegistering || isLoading) return '/';
         return null;
+      }
+
+      // Still resolving the session — show a neutral loading screen.
+      if (status == AuthStatus.initial) {
+        return isLoading ? null : '/loading';
       }
 
       if (status == AuthStatus.unauthenticated) {
@@ -41,14 +65,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         return '/login';
       }
 
-      if (status == AuthStatus.authenticated) {
-        if (isLoggingIn || isRegistering) return '/';
-        return null;
-      }
-
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/loading',
+        builder: (context, state) => const _LoadingScreen(),
+      ),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/register',
@@ -58,6 +81,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/campaigns/new',
         builder: (context, state) => const CreateCampaignScreen(),
+      ),
+      // IMPORTANT: specific routes must come before the generic :hexId route
+      GoRoute(
+        path: '/campaigns/join',
+        builder: (context, state) => const JoinCampaignScreen(),
+      ),
+      GoRoute(
+        path: '/campaigns/join/:hexId',
+        builder: (context, state) {
+          final hexId = state.pathParameters['hexId'];
+          return JoinCampaignScreen(initialHexId: hexId);
+        },
       ),
       GoRoute(
         path: '/campaigns/:hexId',
@@ -155,14 +190,35 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 28),
-              const Text(
-                'Minhas Campanhas',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                  letterSpacing: 0.5,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Minhas Campanhas',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  TextButton.icon(
+                    key: const Key('home_join_campaign_button'),
+                    onPressed: () => context.go('/campaigns/join'),
+                    icon: const Icon(
+                      Icons.login,
+                      color: AppColors.primary,
+                      size: 18,
+                    ),
+                    label: const Text(
+                      'Entrar',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
 
@@ -230,6 +286,15 @@ class HomeScreen extends ConsumerWidget {
                             AppButton(
                               onPressed: () => context.go('/campaigns/new'),
                               child: const Text('Criar Campanha'),
+                            ),
+                            const SizedBox(width: 12),
+                            AppButton(
+                              key: const Key(
+                                'empty_state_join_campaign_button',
+                              ),
+                              onPressed: () => context.go('/campaigns/join'),
+                              variant: AppButtonVariant.secondary,
+                              child: const Text('Entrar em Campanha'),
                             ),
                           ],
                         ),
@@ -374,6 +439,37 @@ class HomeScreen extends ConsumerWidget {
               const SizedBox(height: 80), // Extra space to scroll above FAB
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Displayed while [AuthNotifier.checkSession] resolves on startup.
+/// The router redirects here automatically when [AuthStatus] is [AuthStatus.initial]
+/// and navigates away as soon as the status transitions.
+class _LoadingScreen extends StatelessWidget {
+  const _LoadingScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'ilithid',
+              style: TextStyle(
+                fontSize: 36,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+                letterSpacing: 2,
+              ),
+            ),
+            SizedBox(height: 32),
+            CircularProgressIndicator(color: AppColors.primary),
+          ],
         ),
       ),
     );

@@ -27,6 +27,8 @@ class AuthNotifier extends Notifier<AuthState> {
   AuthState get debugState => state;
 
   Future<void> checkSession() async {
+    // Keep state as `initial` (loading splash) while checking for an
+    // existing session so the router does not prematurely redirect to /login.
     try {
       final user = await _account.get();
 
@@ -45,6 +47,7 @@ class AuthNotifier extends Notifier<AuthState> {
 
       state = AuthState.authenticated(user, displayName);
     } catch (_) {
+      // No active session found — safe to show the login screen.
       state = AuthState.unauthenticated();
     }
   }
@@ -52,10 +55,7 @@ class AuthNotifier extends Notifier<AuthState> {
   Future<void> login(String email, String password) async {
     state = AuthState.loading();
     try {
-      await _account.createEmailPasswordSession(
-        email: email,
-        password: password,
-      );
+      await _tryCreateSession(email, password);
       final user = await _account.get();
 
       // Retrieve display name from profile table
@@ -76,6 +76,35 @@ class AuthNotifier extends Notifier<AuthState> {
       state = AuthState.unauthenticated(errorMessage: e.message);
     } catch (e) {
       state = AuthState.unauthenticated(errorMessage: e.toString());
+    }
+  }
+
+  /// Attempts to create an email/password session.
+  ///
+  /// If a session is already active (e.g. after a Flutter Hot Restart during
+  /// development, where the HTTP client retains its cookie but the Dart state
+  /// was wiped), the stale session is silently deleted before retrying so the
+  /// developer doesn't have to manually clear app data.
+  Future<void> _tryCreateSession(String email, String password) async {
+    try {
+      await _account.createEmailPasswordSession(
+        email: email,
+        password: password,
+      );
+    } on AppwriteException catch (e) {
+      const sessionActiveError =
+          'Creation of a session is prohibited when a session is active';
+      final isSessionActive = e.message?.contains(sessionActiveError) ?? false;
+
+      if (!isSessionActive) rethrow;
+
+      // A stale session exists (common after Hot Restart in development).
+      // Delete it and retry once.
+      await _account.deleteSession(sessionId: 'current');
+      await _account.createEmailPasswordSession(
+        email: email,
+        password: password,
+      );
     }
   }
 
