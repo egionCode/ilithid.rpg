@@ -32,6 +32,12 @@ class FakeNpcTemplatesNotifier extends NpcTemplatesNotifier {
 
   @override
   NpcTemplatesState build() => _initialState;
+
+  @override
+  Future<void> fetchPublicTemplates() async {}
+
+  @override
+  Future<void> fetchMyTemplates() async {}
 }
 
 void main() {
@@ -98,7 +104,10 @@ void main() {
   });
 
   testWidgets('NpcsLibraryScreen renders empty state', (tester) async {
-    final emptyState = NpcTemplatesState.success(const []);
+    final emptyState = NpcTemplatesState.success(
+      publicTemplates: const [],
+      myTemplates: const [],
+    );
 
     await tester.pumpWidget(
       ProviderScope(
@@ -118,60 +127,158 @@ void main() {
     expect(find.text('Nenhum NPC encontrado'), findsOneWidget);
   });
 
-  testWidgets(
-    'NpcsLibraryScreen renders success list state and FAB navigates',
-    (tester) async {
-      final templates = [
-        NpcTemplate(
-          id: 'npc_1',
-          creatorId: 'user_123',
-          name: 'Goblin Scout',
-          hpMax: 8,
-          ac: 12,
-          sourceSystem: 'dnd5e',
-          createdAt: DateTime.now(),
+  testWidgets('NpcsLibraryScreen renders community list and FAB navigates', (
+    tester,
+  ) async {
+    final templates = [
+      NpcTemplate(
+        id: 'npc_1',
+        creatorId: 'creator_456',
+        name: 'Goblin Scout',
+        hpMax: 8,
+        ac: 12,
+        sourceSystem: 'dnd5e',
+        createdAt: DateTime.now(),
+      ),
+    ];
+
+    final successState = NpcTemplatesState.success(
+      publicTemplates: templates,
+      myTemplates: const [],
+      creatorNames: const {'creator_456': 'Percy'},
+    );
+
+    final router = GoRouter(
+      initialLocation: '/npcs',
+      routes: [
+        GoRoute(
+          path: '/npcs',
+          builder: (context, state) => const NpcsLibraryScreen(),
         ),
-      ];
+        GoRoute(
+          path: '/npcs/new',
+          builder: (context, state) => const Scaffold(body: Text('New Form')),
+        ),
+      ],
+    );
 
-      final successState = NpcTemplatesState.success(templates);
-
-      final router = GoRouter(
-        initialLocation: '/npcs',
-        routes: [
-          GoRoute(
-            path: '/npcs',
-            builder: (context, state) => const NpcsLibraryScreen(),
-          ),
-          GoRoute(
-            path: '/npcs/new',
-            builder: (context, state) => const Scaffold(body: Text('New Form')),
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+          appwriteRealtimeProvider.overrideWithValue(mockRealtime),
+          authProvider.overrideWith(() => FakeAuthNotifier(authState)),
+          npcTemplatesProvider.overrideWith(
+            () => FakeNpcTemplatesNotifier(successState),
           ),
         ],
-      );
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pump();
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
-            appwriteRealtimeProvider.overrideWithValue(mockRealtime),
-            authProvider.overrideWith(() => FakeAuthNotifier(authState)),
-            npcTemplatesProvider.overrideWith(
-              () => FakeNpcTemplatesNotifier(successState),
-            ),
-          ],
-          child: MaterialApp.router(routerConfig: router),
-        ),
-      );
-      await tester.pump();
+    expect(find.text('Goblin Scout'), findsOneWidget);
+    expect(find.text('HP Máx: 8 | CA: 12'), findsOneWidget);
+    expect(find.text('Criado por: Percy'), findsOneWidget);
 
-      expect(find.text('Goblin Scout'), findsOneWidget);
-      expect(find.text('HP Máx: 8 | CA: 12'), findsOneWidget);
+    // Tap FAB to navigate to form
+    await tester.tap(find.byKey(const Key('add_npc_template_fab')));
+    await tester.pumpAndSettle();
 
-      // Tap FAB to navigate to form
-      await tester.tap(find.byKey(const Key('add_npc_template_fab')));
-      await tester.pumpAndSettle();
+    expect(find.text('New Form'), findsOneWidget);
+  });
 
-      expect(find.text('New Form'), findsOneWidget);
-    },
-  );
+  testWidgets('NpcsLibraryScreen "Meus NPCs" tab does not show creator', (
+    tester,
+  ) async {
+    final myTemplates = [
+      NpcTemplate(
+        id: 'npc_2',
+        creatorId: 'user_123',
+        name: 'Personal Boss',
+        hpMax: 30,
+        ac: 16,
+        sourceSystem: 'manual',
+        createdAt: DateTime.now(),
+      ),
+    ];
+
+    final successState = NpcTemplatesState.success(
+      publicTemplates: const [],
+      myTemplates: myTemplates,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+          appwriteRealtimeProvider.overrideWithValue(mockRealtime),
+          authProvider.overrideWith(() => FakeAuthNotifier(authState)),
+          npcTemplatesProvider.overrideWith(
+            () => FakeNpcTemplatesNotifier(successState),
+          ),
+        ],
+        child: const MaterialApp(home: NpcsLibraryScreen()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('npcs_tab_mine')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Personal Boss'), findsOneWidget);
+    expect(find.textContaining('Criado por:'), findsNothing);
+  });
+
+  testWidgets('NpcsLibraryScreen filters by name via search field', (
+    tester,
+  ) async {
+    final templates = [
+      NpcTemplate(
+        id: 'npc_1',
+        creatorId: 'creator_456',
+        name: 'Goblin Scout',
+        hpMax: 8,
+        ac: 12,
+        createdAt: DateTime.now(),
+      ),
+      NpcTemplate(
+        id: 'npc_2',
+        creatorId: 'creator_789',
+        name: 'Orc Brute',
+        hpMax: 20,
+        ac: 14,
+        createdAt: DateTime.now(),
+      ),
+    ];
+
+    final successState = NpcTemplatesState.success(
+      publicTemplates: templates,
+      myTemplates: const [],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+          appwriteRealtimeProvider.overrideWithValue(mockRealtime),
+          authProvider.overrideWith(() => FakeAuthNotifier(authState)),
+          npcTemplatesProvider.overrideWith(
+            () => FakeNpcTemplatesNotifier(successState),
+          ),
+        ],
+        child: const MaterialApp(home: NpcsLibraryScreen()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Goblin Scout'), findsOneWidget);
+    expect(find.text('Orc Brute'), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('npc_search_field')), 'orc');
+    await tester.pump();
+
+    expect(find.text('Goblin Scout'), findsNothing);
+    expect(find.text('Orc Brute'), findsOneWidget);
+  });
 }
