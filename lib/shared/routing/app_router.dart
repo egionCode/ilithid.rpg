@@ -12,6 +12,8 @@ import 'package:ilithid/features/campaigns/presentation/screens/join_campaign_sc
 import 'package:ilithid/features/characters/presentation/screens/character_form_screen.dart';
 import 'package:ilithid/features/characters/presentation/screens/characters_list_screen.dart';
 import 'package:ilithid/features/dashboard/presentation/screens/campaign_dashboard_screen.dart';
+import 'package:ilithid/features/npcs/presentation/screens/npc_form_screen.dart';
+import 'package:ilithid/features/npcs/presentation/screens/npcs_library_screen.dart';
 import 'package:ilithid/shared/components/app_button.dart';
 import 'package:ilithid/shared/components/app_card.dart';
 import 'package:ilithid/shared/state/pending_deep_link_provider.dart';
@@ -96,6 +98,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: '/npcs',
+        builder: (context, state) => const NpcsLibraryScreen(),
+      ),
+      GoRoute(
+        path: '/npcs/new',
+        builder: (context, state) => const NpcFormScreen(),
+      ),
+      GoRoute(
         path: '/campaigns/new',
         builder: (context, state) => const CreateCampaignScreen(),
       ),
@@ -139,6 +149,15 @@ class HomeScreen extends ConsumerWidget {
             icon: const Icon(Icons.shield_outlined, color: AppColors.primary),
             tooltip: 'Minhas Fichas',
             onPressed: () => context.go('/characters'),
+          ),
+          IconButton(
+            key: const Key('home_npcs_button'),
+            icon: const Icon(
+              Icons.auto_stories_outlined,
+              color: AppColors.primary,
+            ),
+            tooltip: 'Biblioteca de NPCs',
+            onPressed: () => context.go('/npcs'),
           ),
           IconButton(
             icon: const Icon(Icons.logout, color: AppColors.damage),

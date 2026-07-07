@@ -6,10 +6,15 @@ import 'package:ilithid/features/auth/presentation/providers/auth_provider.dart'
 import 'package:ilithid/features/auth/presentation/providers/auth_state.dart';
 import 'package:ilithid/features/campaigns/presentation/providers/campaigns_provider.dart';
 import 'package:ilithid/features/campaigns/presentation/providers/campaigns_state.dart';
+import 'package:ilithid/features/sessions/presentation/providers/sessions_provider.dart';
 import 'package:ilithid/shared/services/appwrite_service.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockTablesDB extends Mock implements TablesDB {}
+
+class MockRealtime extends Mock implements Realtime {}
+
+class MockRealtimeSubscription extends Mock implements RealtimeSubscription {}
 
 class FakeAuthNotifier extends AuthNotifier {
   final AuthState _initialState;
@@ -24,6 +29,8 @@ class FakeAuthNotifier extends AuthNotifier {
 
 void main() {
   late MockTablesDB mockTablesDb;
+  late MockRealtime mockRealtime;
+  late MockRealtimeSubscription mockRealtimeSubscription;
   late ProviderContainer container;
 
   /// Helper to mock a Campaign Row.
@@ -32,6 +39,7 @@ void main() {
     required String name,
     required String hexId,
     required String gmUserId,
+    String status = 'active',
   }) {
     return models.Row.fromMap({
       '\$id': id,
@@ -44,7 +52,7 @@ void main() {
       'hexId': hexId,
       'name': name,
       'gmUserId': gmUserId,
-      'status': 'active',
+      'status': status,
       'createdAt': DateTime.now().toIso8601String(),
     });
   }
@@ -72,6 +80,16 @@ void main() {
 
   setUp(() {
     mockTablesDb = MockTablesDB();
+    mockRealtime = MockRealtime();
+    mockRealtimeSubscription = MockRealtimeSubscription();
+
+    when(
+      () => mockRealtime.subscribe(any()),
+    ).thenReturn(mockRealtimeSubscription);
+    when(
+      () => mockRealtimeSubscription.stream,
+    ).thenAnswer((_) => const Stream.empty());
+
     // Register default stub to prevent type errors on automatic reactive fetches
     when(
       () => mockTablesDb.listRows(
@@ -97,6 +115,7 @@ void main() {
       container = ProviderContainer(
         overrides: [
           appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+          appwriteRealtimeProvider.overrideWithValue(mockRealtime),
           authProvider.overrideWith(() => FakeAuthNotifier(guestState)),
         ],
       );
@@ -137,6 +156,7 @@ void main() {
         container = ProviderContainer(
           overrides: [
             appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+            appwriteRealtimeProvider.overrideWithValue(mockRealtime),
             authProvider.overrideWith(
               () => FakeAuthNotifier(authenticatedState),
             ),
@@ -239,6 +259,7 @@ void main() {
       container = ProviderContainer(
         overrides: [
           appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+          appwriteRealtimeProvider.overrideWithValue(mockRealtime),
           authProvider.overrideWith(() => FakeAuthNotifier(authenticatedState)),
         ],
       );
@@ -267,6 +288,7 @@ void main() {
       expect(state.status, equals(CampaignsStatus.error));
       expect(state.errorMessage, equals('Database error'));
     });
+
     test('fetchCampaigns should succeed and load user campaigns', () async {
       final mockUser = models.User.fromMap({
         '\$id': 'user_gm_123',
@@ -291,6 +313,7 @@ void main() {
       container = ProviderContainer(
         overrides: [
           appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+          appwriteRealtimeProvider.overrideWithValue(mockRealtime),
           authProvider.overrideWith(() => FakeAuthNotifier(authenticatedState)),
         ],
       );
@@ -366,6 +389,7 @@ void main() {
         container = ProviderContainer(
           overrides: [
             appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+            appwriteRealtimeProvider.overrideWithValue(mockRealtime),
             authProvider.overrideWith(
               () => FakeAuthNotifier(authenticatedState),
             ),
@@ -457,6 +481,7 @@ void main() {
         container = ProviderContainer(
           overrides: [
             appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+            appwriteRealtimeProvider.overrideWithValue(mockRealtime),
             authProvider.overrideWith(
               () => FakeAuthNotifier(authenticatedState),
             ),
@@ -476,6 +501,162 @@ void main() {
         final state = container.read(campaignsProvider);
         expect(state.status, equals(CampaignsStatus.error));
         expect(state.errorMessage, equals('Network Timeout'));
+      },
+    );
+
+    test(
+      'endCampaign should update status of campaign to finished and end active session',
+      () async {
+        final mockUser = models.User.fromMap({
+          '\$id': 'user_gm_123',
+          '\$createdAt': '',
+          '\$updatedAt': '',
+          'name': 'Garen',
+          'email': 'garen@demacia.com',
+          'phone': '',
+          'emailVerification': false,
+          'phoneVerification': false,
+          'status': true,
+          'labels': <String>[],
+          'passwordUpdate': '',
+          'registration': '',
+          'accessedAt': '',
+          'prefs': <String, dynamic>{},
+          'mfa': false,
+          'targets': <Map<String, dynamic>>[],
+        });
+        final authenticatedState = AuthState.authenticated(mockUser, 'Garen');
+
+        container = ProviderContainer(
+          overrides: [
+            appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+            appwriteRealtimeProvider.overrideWithValue(mockRealtime),
+            authProvider.overrideWith(
+              () => FakeAuthNotifier(authenticatedState),
+            ),
+          ],
+        );
+
+        final finishedCampaignRow = buildCampaignRow(
+          id: 'campaign_abc',
+          name: 'Phandelver',
+          hexId: 'abc12345',
+          gmUserId: 'user_gm_123',
+          status: 'finished',
+        );
+
+        // Stub updateRow for campaigns table
+        when(
+          () => mockTablesDb.updateRow(
+            databaseId: any(named: 'databaseId'),
+            tableId: appwriteCampaignsTableId,
+            rowId: 'campaign_abc',
+            data: {'status': 'finished'},
+          ),
+        ).thenAnswer((_) async => finishedCampaignRow);
+
+        // Stub listRows for active sessions
+        final activeSessionRow = models.Row.fromMap({
+          '\$id': 'sess_123',
+          '\$tableId': 'sessions',
+          '\$databaseId': 'main',
+          '\$createdAt': '',
+          '\$updatedAt': '',
+          '\$permissions': <String>[],
+          '\$sequence': 0,
+          'campaignId': 'campaign_abc',
+          'status': 'active',
+          'startedAt': DateTime.now().toIso8601String(),
+          'endedAt': null,
+        });
+
+        when(
+          () => mockTablesDb.listRows(
+            databaseId: any(named: 'databaseId'),
+            tableId: appwriteSessionsTableId,
+            queries: any(named: 'queries'),
+          ),
+        ).thenAnswer(
+          (_) async => models.RowList.fromMap({
+            'total': 1,
+            'rows': [activeSessionRow.toMap()],
+          }),
+        );
+
+        // Stub updateRow for sessions table
+        final finishedSessionRow = models.Row.fromMap({
+          ...activeSessionRow.toMap(),
+          'status': 'finished',
+          'endedAt': DateTime.now().toIso8601String(),
+        });
+
+        when(
+          () => mockTablesDb.updateRow(
+            databaseId: any(named: 'databaseId'),
+            tableId: appwriteSessionsTableId,
+            rowId: 'sess_123',
+            data: any(named: 'data'),
+          ),
+        ).thenAnswer((_) async => finishedSessionRow);
+
+        // Stub fetchCampaigns calls: listRows and getRow
+        when(
+          () => mockTablesDb.listRows(
+            databaseId: any(named: 'databaseId'),
+            tableId: appwriteCampaignMembersTableId,
+            queries: any(named: 'queries'),
+          ),
+        ).thenAnswer(
+          (_) async => models.RowList.fromMap({
+            'total': 1,
+            'rows': [
+              buildMemberRow(
+                id: 'member_123',
+                campaignId: 'campaign_abc',
+                userId: 'user_gm_123',
+              ).toMap(),
+            ],
+          }),
+        );
+
+        when(
+          () => mockTablesDb.getRow(
+            databaseId: any(named: 'databaseId'),
+            tableId: appwriteCampaignsTableId,
+            rowId: 'campaign_abc',
+          ),
+        ).thenAnswer((_) async => finishedCampaignRow);
+
+        // Allow automatic reactive fetch to complete first
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        final success = await container
+            .read(campaignsProvider.notifier)
+            .endCampaign('campaign_abc');
+        expect(success, isTrue);
+
+        final state = container.read(campaignsProvider);
+        expect(state.status, equals(CampaignsStatus.success));
+        expect(state.campaigns.length, equals(1));
+        expect(state.campaigns.first.campaign.status, equals('finished'));
+
+        verify(
+          () => mockTablesDb.updateRow(
+            databaseId: any(named: 'databaseId'),
+            tableId: appwriteCampaignsTableId,
+            rowId: 'campaign_abc',
+            data: {'status': 'finished'},
+          ),
+        ).called(1);
+
+        verify(
+          () => mockTablesDb.updateRow(
+            databaseId: any(named: 'databaseId'),
+            tableId: appwriteSessionsTableId,
+            rowId: 'sess_123',
+            data: any(named: 'data'),
+          ),
+        ).called(1);
       },
     );
 
