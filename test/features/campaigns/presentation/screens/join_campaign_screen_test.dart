@@ -7,9 +7,14 @@ import 'package:go_router/go_router.dart';
 import 'package:ilithid/features/auth/presentation/providers/auth_provider.dart';
 import 'package:ilithid/features/auth/presentation/providers/auth_state.dart';
 import 'package:ilithid/features/campaigns/presentation/screens/join_campaign_screen.dart';
+import 'package:ilithid/features/sessions/presentation/providers/sessions_provider.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockTablesDB extends Mock implements TablesDB {}
+
+class MockRealtime extends Mock implements Realtime {}
+
+class MockRealtimeSubscription extends Mock implements RealtimeSubscription {}
 
 class FakeAuthNotifier extends AuthNotifier {
   final AuthState _initialState;
@@ -24,7 +29,10 @@ class FakeAuthNotifier extends AuthNotifier {
 
 void main() {
   late MockTablesDB mockTablesDb;
+  late MockRealtime mockRealtime;
+  late MockRealtimeSubscription mockRealtimeSubscription;
 
+  /// Helper to mock a Campaign Row.
   models.Row buildCampaignRow({
     required String id,
     required String name,
@@ -46,6 +54,7 @@ void main() {
     });
   }
 
+  /// Helper to mock a Character Row.
   models.Row buildCharacterRow({required String id, required String name}) {
     return models.Row.fromMap({
       '\$id': id,
@@ -57,18 +66,26 @@ void main() {
       '\$sequence': 0,
       'userId': 'user_123',
       'name': name,
-      'hpCurrent': 50,
-      'hpMax': 50,
-      'hpTemp': 0,
-      'ac': 15,
-      'sourceSystem': 'manual',
+      'hpCurrent': 120,
+      'hpMax': 120,
+      'ac': 17,
       'createdAt': DateTime.now().toIso8601String(),
     });
   }
 
   setUp(() {
     mockTablesDb = MockTablesDB();
-    // Default listRows response
+    mockRealtime = MockRealtime();
+    mockRealtimeSubscription = MockRealtimeSubscription();
+
+    when(
+      () => mockRealtime.subscribe(any()),
+    ).thenReturn(mockRealtimeSubscription);
+    when(
+      () => mockRealtimeSubscription.stream,
+    ).thenAnswer((_) => const Stream.empty());
+
+    // Register default stubs to prevent type errors on automatic reactive fetches
     when(
       () => mockTablesDb.listRows(
         databaseId: any(named: 'databaseId'),
@@ -86,13 +103,6 @@ void main() {
   testWidgets('JoinCampaignScreen searches and joins campaign successfully', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(800, 1000);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-
     final authenticatedUser = models.User.fromMap({
       '\$id': 'user_123',
       '\$createdAt': '',
@@ -100,11 +110,11 @@ void main() {
       'name': 'Grog',
       'email': 'grog@vox.com',
       'phone': '',
+      'emailVerification': false,
+      'phoneVerification': false,
       'status': true,
       'labels': <String>[],
       'passwordUpdate': '',
-      'emailVerification': true,
-      'phoneVerification': false,
       'mfa': false,
       'prefs': <String, dynamic>{},
       'accessedAt': '',
@@ -156,7 +166,21 @@ void main() {
       }),
     );
 
-    // Stub for creating campaign member
+    // Stub for campaign members list (to check if already joined)
+    when(
+      () => mockTablesDb.listRows(
+        databaseId: any(named: 'databaseId'),
+        tableId: 'campaign_members',
+        queries: any(named: 'queries'),
+      ),
+    ).thenAnswer(
+      (_) async => models.RowList.fromMap({
+        'total': 0,
+        'rows': <Map<String, dynamic>>[],
+      }),
+    );
+
+    // Stub for creating campaign member row
     when(
       () => mockTablesDb.createRow(
         databaseId: any(named: 'databaseId'),
@@ -199,6 +223,7 @@ void main() {
       ProviderScope(
         overrides: [
           appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+          appwriteRealtimeProvider.overrideWithValue(mockRealtime),
           authProvider.overrideWith(() => FakeAuthNotifier(authenticatedState)),
         ],
         child: MaterialApp.router(routerConfig: router),

@@ -80,6 +80,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           labelText: 'Email Address',
                           hintText: 'name@example.com',
                           keyboardType: TextInputType.emailAddress,
+                          onFieldSubmitted: (_) => _submit(),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return 'Email is required';
@@ -96,6 +97,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           labelText: 'Password',
                           hintText: '••••••••',
                           obscureText: true,
+                          onFieldSubmitted: (_) => _submit(),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return 'Password is required';

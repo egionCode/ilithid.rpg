@@ -8,6 +8,8 @@ import 'package:ilithid/features/campaigns/domain/user_campaign.dart';
 import 'package:ilithid/features/campaigns/presentation/providers/campaigns_provider.dart';
 import 'package:ilithid/features/characters/domain/character.dart';
 import 'package:ilithid/features/characters/presentation/providers/characters_provider.dart';
+import 'package:ilithid/features/sessions/presentation/providers/sessions_provider.dart';
+import 'package:ilithid/features/sessions/presentation/providers/sessions_state.dart';
 import 'package:ilithid/shared/components/app_button.dart';
 import 'package:ilithid/shared/components/app_card.dart';
 import 'package:ilithid/shared/theme/app_colors.dart';
@@ -28,6 +30,7 @@ class _CampaignDashboardScreenState
     extends ConsumerState<CampaignDashboardScreen> {
   Future<CampaignMember?>? _membershipFuture;
   Campaign? _campaign;
+  int _currentTab = 0; // 0 = Geral, 1 = Sessões
 
   @override
   void initState() {
@@ -389,8 +392,41 @@ class _CampaignDashboardScreenState
     );
   }
 
+  String _formatDate(DateTime dateTime) {
+    return '${dateTime.day.toString().padLeft(2, '0')}/${dateTime.month.toString().padLeft(2, '0')}/${dateTime.year} às ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final campaignsState = ref.watch(campaignsProvider);
+    if (_campaign != null) {
+      for (final uc in campaignsState.campaigns) {
+        if (uc.campaign.id == _campaign!.id) {
+          _campaign = uc.campaign;
+          break;
+        }
+      }
+    }
+
+    if (_campaign != null && _campaign!.status == 'finished') {
+      final scaffoldMessenger = ScaffoldMessenger.of(context);
+      final router = GoRouter.of(context);
+      Future.microtask(() {
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(
+            content: Text('Esta campanha foi finalizada pelo Mestre.'),
+            backgroundColor: AppColors.primary,
+          ),
+        );
+        router.go('/');
+      });
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
+    }
+
     if (_campaign == null) {
       return const Scaffold(
         body: Center(
@@ -400,6 +436,9 @@ class _CampaignDashboardScreenState
     }
 
     final charactersState = ref.watch(charactersProvider);
+    final sessionsState = ref.watch(sessionsProvider(_campaign!.id));
+    final activeSession = sessionsState.activeSession;
+    final isLoadingSession = sessionsState.status == SessionsStatus.loading;
 
     return Scaffold(
       appBar: AppBar(
@@ -483,144 +522,372 @@ class _CampaignDashboardScreenState
                         ),
                       ),
                       const SizedBox(height: 24),
-
-                      // Code hex card
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 12,
-                          horizontal: 16,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.background,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Column(
-                          children: [
-                            const Text(
-                              'CÓDIGO DA CAMPANHA (HEX ID)',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.5,
-                                color: AppColors.textMuted,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              widget.hexId.toUpperCase(),
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 2,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Player active character section
-                      if (isLoadingMember) ...[
-                        const Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ] else if (member != null && !isGm) ...[
-                        const Divider(height: 32, color: AppColors.border),
-                        const Text(
-                          'SUA FICHA ATIVA',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.5,
-                            color: AppColors.textMuted,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        if (activeChar != null) ...[
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: AppColors.background,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.border),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.shield_outlined,
-                                  color: AppColors.primary,
-                                  size: 28,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              key: const Key('tab_general'),
+                              onTap: () => setState(() => _currentTab = 0),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
                                 ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        activeChar.name,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                          color: AppColors.textPrimary,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'HP Máx: ${activeChar.hpMax} | CA: ${activeChar.ac}',
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          color: AppColors.textSecondary,
-                                        ),
-                                      ),
-                                    ],
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color: _currentTab == 0
+                                          ? AppColors.primary
+                                          : Colors.transparent,
+                                      width: 2,
+                                    ),
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                        ] else ...[
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: AppColors.damage.withAlpha(26),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: AppColors.damage.withAlpha(77),
+                                child: Text(
+                                  'Geral',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontWeight: _currentTab == 0
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                    color: _currentTab == 0
+                                        ? AppColors.primary
+                                        : AppColors.textSecondary,
+                                  ),
+                                ),
                               ),
                             ),
-                            child: const Text(
-                              'Nenhum personagem ativo selecionado.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: AppColors.damage,
-                                fontWeight: FontWeight.bold,
+                          ),
+                          Expanded(
+                            child: InkWell(
+                              key: const Key('tab_sessions'),
+                              onTap: () => setState(() => _currentTab = 1),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color: _currentTab == 1
+                                          ? AppColors.primary
+                                          : Colors.transparent,
+                                      width: 2,
+                                    ),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Sessões',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontWeight: _currentTab == 1
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                    color: _currentTab == 1
+                                        ? AppColors.primary
+                                        : AppColors.textSecondary,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
                         ],
-                        const SizedBox(height: 12),
-                        AppButton(
-                          key: const Key('change_active_char_button'),
-                          onPressed: () => _showCharacterSwapSheet(
-                            context,
-                            _campaign!.id,
-                            member.activeCharacterId,
+                      ),
+                      const SizedBox(height: 24),
+
+                      if (_currentTab == 0) ...[
+                        // Code hex card
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                            horizontal: 16,
                           ),
-                          variant: AppButtonVariant.secondary,
-                          child: Text(
-                            activeChar != null
-                                ? 'Trocar Ficha Ativa'
-                                : 'Selecionar Ficha Ativa',
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Column(
+                            children: [
+                              const Text(
+                                'CÓDIGO DA CAMPANHA (HEX ID)',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.5,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                widget.hexId.toUpperCase(),
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 2,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
+                        const SizedBox(height: 24),
 
+                        // Player active character section
+                        if (isLoadingMember) ...[
+                          const Center(
+                            child: CircularProgressIndicator(
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ] else if (member != null && !isGm) ...[
+                          const Divider(height: 32, color: AppColors.border),
+                          const Text(
+                            'SUA FICHA ATIVA',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.5,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          if (activeChar != null) ...[
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: AppColors.background,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.border),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.shield_outlined,
+                                    color: AppColors.primary,
+                                    size: 28,
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          activeChar.name,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'HP Máx: ${activeChar.hpMax} | CA: ${activeChar.ac}',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ] else ...[
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: AppColors.damage.withAlpha(26),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.damage.withAlpha(77),
+                                ),
+                              ),
+                              child: const Text(
+                                'Nenhum personagem ativo selecionado.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AppColors.damage,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 12),
+                          AppButton(
+                            key: const Key('change_active_char_button'),
+                            onPressed: () => _showCharacterSwapSheet(
+                              context,
+                              _campaign!.id,
+                              member.activeCharacterId,
+                            ),
+                            variant: AppButtonVariant.secondary,
+                            child: Text(
+                              activeChar != null
+                                  ? 'Trocar Ficha Ativa'
+                                  : 'Selecionar Ficha Ativa',
+                            ),
+                          ),
+                        ],
+
+                        // Active Session Section
+                        const Divider(height: 32, color: AppColors.border),
+                        if (isLoadingSession) ...[
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16.0),
+                              child: CircularProgressIndicator(
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        ] else ...[
+                          if (activeSession != null) ...[
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: AppColors.heal.withAlpha(26),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.heal.withAlpha(77),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.play_circle_fill_outlined,
+                                        color: AppColors.heal,
+                                        size: 28,
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                              'Sessão em Andamento!',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                                color: AppColors.textPrimary,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Iniciada em: ${_formatDate(activeSession.startedAt)}',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: AppColors.textSecondary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  AppButton(
+                                    onPressed: () {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Entrando na sessão ativa...',
+                                          ),
+                                          backgroundColor: AppColors.heal,
+                                        ),
+                                      );
+                                    },
+                                    child: const Text('Entrar na Sessão'),
+                                  ),
+                                  if (isGm) ...[
+                                    const SizedBox(height: 12),
+                                    AppButton(
+                                      key: const Key('end_session_button'),
+                                      variant: AppButtonVariant.danger,
+                                      onPressed: () =>
+                                          _showEndSessionConfirmation(
+                                            context,
+                                            activeSession.id,
+                                          ),
+                                      child: const Text('Encerrar Sessão'),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ] else ...[
+                            if (isGm) ...[
+                              AppButton(
+                                key: const Key('start_session_button'),
+                                onPressed: () async {
+                                  final notifier = ref.read(
+                                    sessionsProvider(_campaign!.id).notifier,
+                                  );
+                                  final session = await notifier
+                                      .createSession();
+                                  if (session != null && context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Sessão iniciada com sucesso!',
+                                        ),
+                                        backgroundColor: AppColors.heal,
+                                      ),
+                                    );
+                                  }
+                                },
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.play_arrow, color: Colors.white),
+                                    SizedBox(width: 8),
+                                    Text('Iniciar Sessão'),
+                                  ],
+                                ),
+                              ),
+                            ] else ...[
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: AppColors.background,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Icon(
+                                      Icons.info_outline,
+                                      color: AppColors.textSecondary,
+                                      size: 24,
+                                    ),
+                                    SizedBox(width: 16),
+                                    Expanded(
+                                      child: Text(
+                                        'Nenhuma sessão ativa no momento. Aguarde o Mestre iniciar.',
+                                        style: TextStyle(
+                                          color: AppColors.textSecondary,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ],
+                      ] else ...[
+                        _buildSessionsTab(sessionsState, isGm),
+                      ],
                       const Divider(height: 32, color: AppColors.border),
                       AppButton(
                         key: const Key('dashboard_share_button'),
@@ -634,6 +901,23 @@ class _CampaignDashboardScreenState
                           ],
                         ),
                       ),
+                      if (isGm) ...[
+                        const SizedBox(height: 12),
+                        AppButton(
+                          key: const Key('end_campaign_button'),
+                          variant: AppButtonVariant.danger,
+                          onPressed: () =>
+                              _showEndCampaignConfirmation(context),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.gavel, color: Colors.white, size: 18),
+                              SizedBox(width: 8),
+                              Text('Finalizar Campanha'),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       AppButton(
                         onPressed: () => context.go('/'),
@@ -648,6 +932,271 @@ class _CampaignDashboardScreenState
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSessionsTab(SessionsState sessionsState, bool isGm) {
+    if (sessionsState.status == SessionsStatus.loading &&
+        sessionsState.sessions.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 24.0),
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
+    }
+
+    final sessions = sessionsState.sessions;
+    if (sessions.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: const Column(
+          children: [
+            Icon(Icons.history, color: AppColors.textMuted, size: 48),
+            SizedBox(height: 12),
+            Text(
+              'Nenhuma sessão registrada nesta campanha.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'HISTÓRICO DE SESSÕES',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.5,
+            color: AppColors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...sessions.map((session) {
+          final isActive = session.status == 'active';
+          return Container(
+            key: Key('session_card_${session.id}'),
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isActive
+                  ? AppColors.heal.withAlpha(26)
+                  : AppColors.background,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isActive
+                    ? AppColors.heal.withAlpha(128)
+                    : AppColors.border,
+                width: isActive ? 2 : 1,
+              ),
+              boxShadow: isActive
+                  ? [
+                      BoxShadow(
+                        color: AppColors.heal.withAlpha(38),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isActive
+                      ? Icons.play_circle_fill_outlined
+                      : Icons.check_circle_outline,
+                  color: isActive ? AppColors.heal : AppColors.textMuted,
+                  size: 32,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            isActive ? 'Sessão Ativa' : 'Sessão Finalizada',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: isActive
+                                  ? AppColors.heal
+                                  : AppColors.textPrimary,
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isActive
+                                  ? AppColors.heal.withAlpha(38)
+                                  : AppColors.border,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              isActive ? 'ATIVA' : 'CONCLUÍDA',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                color: isActive
+                                    ? AppColors.heal
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Início: ${_formatDate(session.startedAt)}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      if (session.endedAt != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Fim: ${_formatDate(session.endedAt!)}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  void _showEndSessionConfirmation(BuildContext context, String sessionId) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: const Text('Encerrar Sessão'),
+          content: const Text(
+            'Tem certeza que deseja encerrar a sessão ativa? Esta ação é irreversível.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            AppButton(
+              key: const Key('confirm_end_session_button'),
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                final notifier = ref.read(
+                  sessionsProvider(_campaign!.id).notifier,
+                );
+                final success = await notifier.endSession(sessionId);
+                if (success && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Sessão encerrada com sucesso!'),
+                      backgroundColor: AppColors.heal,
+                    ),
+                  );
+                }
+              },
+              variant: AppButtonVariant.danger,
+              child: const Text('Encerrar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showEndCampaignConfirmation(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: const Text('Finalizar Campanha'),
+          content: const Text(
+            'Tem certeza que deseja finalizar esta campanha? Isso impedirá novos logins e sessões.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            AppButton(
+              key: const Key('confirm_end_campaign_first_button'),
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                _showEndCampaignSecondConfirmation(context);
+              },
+              variant: AppButtonVariant.danger,
+              child: const Text('Confirmar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showEndCampaignSecondConfirmation(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: const Text('AVISO: Ação Irreversível'),
+          content: const Text(
+            'Esta ação é permanente e não poderá ser desfeita. Deseja mesmo finalizar a campanha?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            AppButton(
+              key: const Key('confirm_end_campaign_second_button'),
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                final notifier = ref.read(campaignsProvider.notifier);
+                final success = await notifier.endCampaign(_campaign!.id);
+                if (success && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Campanha finalizada com sucesso!'),
+                      backgroundColor: AppColors.heal,
+                    ),
+                  );
+                  context.go('/');
+                }
+              },
+              variant: AppButtonVariant.danger,
+              child: const Text('Finalizar Permanentemente'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

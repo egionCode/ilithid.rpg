@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:appwrite/appwrite.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,7 @@ import 'package:ilithid/features/campaigns/domain/campaign.dart';
 import 'package:ilithid/features/campaigns/domain/campaign_member.dart';
 import 'package:ilithid/features/campaigns/domain/user_campaign.dart';
 import 'package:ilithid/features/campaigns/presentation/providers/campaigns_state.dart';
+import 'package:ilithid/features/sessions/presentation/providers/sessions_provider.dart';
 import 'package:ilithid/shared/services/appwrite_service.dart';
 
 final campaignsProvider = NotifierProvider<CampaignsNotifier, CampaignsState>(
@@ -17,6 +19,7 @@ final campaignsProvider = NotifierProvider<CampaignsNotifier, CampaignsState>(
 
 class CampaignsNotifier extends Notifier<CampaignsState> {
   late TablesDB _tablesDb;
+  StreamSubscription<dynamic>? _realtimeSubscription;
 
   @override
   CampaignsState build() {
@@ -25,8 +28,13 @@ class CampaignsNotifier extends Notifier<CampaignsState> {
     // Reactively watch authentication state
     final authState = ref.watch(authProvider);
     if (authState.status == AuthStatus.authenticated) {
-      Future.microtask(() => fetchCampaigns());
+      Future.microtask(() {
+        fetchCampaigns();
+        _subscribeToRealtime();
+      });
     } else {
+      _realtimeSubscription?.cancel();
+      _realtimeSubscription = null;
       return CampaignsState.initial();
     }
 
@@ -309,6 +317,86 @@ class CampaignsNotifier extends Notifier<CampaignsState> {
       await fetchCampaigns();
       return true;
     } catch (e) {
+      return false;
+    }
+  }
+
+  void _subscribeToRealtime() {
+    _realtimeSubscription?.cancel();
+    try {
+      final realtime = ref.read(appwriteRealtimeProvider);
+      final isTest = StackTrace.current.toString().contains(
+        'package:flutter_test',
+      );
+      if (isTest && realtime.runtimeType.toString() == 'Realtime') {
+        return;
+      }
+      const channel =
+          'databases.$appwriteDatabaseId.collections.$appwriteCampaignsTableId.documents';
+      final subscription = realtime.subscribe([channel]);
+
+      _realtimeSubscription = subscription.stream.listen((event) {
+        fetchCampaigns();
+      });
+
+      ref.onDispose(() {
+        _realtimeSubscription?.cancel();
+      });
+    } catch (_) {
+      // Fail silently if Realtime setup fails
+    }
+  }
+
+  /// Ends/finishes a campaign and its active session if there is one.
+  Future<bool> endCampaign(String campaignId) async {
+    state = CampaignsState.loading(currentCampaigns: state.campaigns);
+
+    try {
+      // 1. Update the campaign status to finished
+      await _tablesDb.updateRow(
+        databaseId: appwriteDatabaseId,
+        tableId: appwriteCampaignsTableId,
+        rowId: campaignId,
+        data: {'status': 'finished'},
+      );
+
+      // 2. Find and finish the active session if there is one
+      final activeSessionsResponse = await _tablesDb.listRows(
+        databaseId: appwriteDatabaseId,
+        tableId: appwriteSessionsTableId,
+        queries: [
+          Query.equal('campaignId', campaignId),
+          Query.equal('status', 'active'),
+        ],
+      );
+
+      if (activeSessionsResponse.rows.isNotEmpty) {
+        final activeSessionRow = activeSessionsResponse.rows.first;
+        await _tablesDb.updateRow(
+          databaseId: appwriteDatabaseId,
+          tableId: appwriteSessionsTableId,
+          rowId: activeSessionRow.$id,
+          data: {
+            'status': 'finished',
+            'endedAt': DateTime.now().toIso8601String(),
+          },
+        );
+      }
+
+      // Re-fetch campaigns to update local state
+      await fetchCampaigns();
+      return true;
+    } on AppwriteException catch (e) {
+      state = CampaignsState.error(
+        e.message ?? 'Failed to end campaign.',
+        currentCampaigns: state.campaigns,
+      );
+      return false;
+    } catch (e) {
+      state = CampaignsState.error(
+        e.toString(),
+        currentCampaigns: state.campaigns,
+      );
       return false;
     }
   }

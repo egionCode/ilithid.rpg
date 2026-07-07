@@ -39,6 +39,11 @@ const String appwriteCharactersTableId = String.fromEnvironment(
   defaultValue: 'characters',
 );
 
+const String appwriteSessionsTableId = String.fromEnvironment(
+  'APPWRITE_SESSIONS_TABLE_ID',
+  defaultValue: 'sessions',
+);
+
 class AppwriteService {
   /// Initializes the client (configurations are baked in from environment variables).
   static Future<void> initialize() async {
