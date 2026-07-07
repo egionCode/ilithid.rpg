@@ -84,6 +84,15 @@ void main() {
         'rows': <Map<String, dynamic>>[],
       }),
     );
+
+    // Default profile lookup used when resolving a template creator's name.
+    when(
+      () => mockTablesDb.getRow(
+        databaseId: any(named: 'databaseId'),
+        tableId: 'profiles',
+        rowId: any(named: 'rowId'),
+      ),
+    ).thenThrow(Exception('profile not found'));
   });
 
   tearDown(() {
@@ -92,7 +101,7 @@ void main() {
 
   group('NpcTemplatesNotifier Tests', () {
     test(
-      'fetchNpcTemplates should fail if user is not authenticated',
+      'fetchPublicTemplates should fail if user is not authenticated',
       () async {
         final guestState = AuthState.unauthenticated();
         container = ProviderContainer(
@@ -104,7 +113,7 @@ void main() {
         );
 
         final notifier = container.read(npcTemplatesProvider.notifier);
-        await notifier.fetchNpcTemplates();
+        await notifier.fetchPublicTemplates();
 
         final state = container.read(npcTemplatesProvider);
         expect(state.status, equals(NpcTemplatesStatus.error));
@@ -112,7 +121,7 @@ void main() {
       },
     );
 
-    test('fetchNpcTemplates should succeed and load templates', () async {
+    test('fetchPublicTemplates should succeed and load templates', () async {
       final authUser = models.User.fromMap({
         '\$id': 'user_123',
         '\$createdAt': '',
@@ -168,13 +177,165 @@ void main() {
       );
 
       final notifier = container.read(npcTemplatesProvider.notifier);
-      await notifier.fetchNpcTemplates();
+      await notifier.fetchPublicTemplates();
 
       final state = container.read(npcTemplatesProvider);
       expect(state.status, equals(NpcTemplatesStatus.success));
-      expect(state.templates, hasLength(1));
-      expect(state.templates.first.name, equals('Goblin'));
+      expect(state.publicTemplates, hasLength(1));
+      expect(state.publicTemplates.first.name, equals('Goblin'));
     });
+
+    test('fetchMyTemplates should filter by creatorId', () async {
+      final authUser = models.User.fromMap({
+        '\$id': 'user_123',
+        '\$createdAt': '',
+        '\$updatedAt': '',
+        'name': 'Grog',
+        'email': 'grog@vox.com',
+        'phone': '',
+        'emailVerification': false,
+        'phoneVerification': false,
+        'status': true,
+        'labels': <String>[],
+        'passwordUpdate': '',
+        'mfa': false,
+        'prefs': <String, dynamic>{},
+        'accessedAt': '',
+        'registration': '',
+        'targets': <Map<String, dynamic>>[],
+      });
+
+      final authenticatedState = AuthState(
+        status: AuthStatus.authenticated,
+        user: authUser,
+        displayName: 'Grog',
+      );
+
+      container = ProviderContainer(
+        overrides: [
+          appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+          appwriteRealtimeProvider.overrideWithValue(mockRealtime),
+          authProvider.overrideWith(() => FakeAuthNotifier(authenticatedState)),
+        ],
+      );
+
+      final npcRow = buildNpcTemplateRow(
+        id: 'npc_mine',
+        creatorId: 'user_123',
+        name: 'Bandit Leader',
+        hpMax: 20,
+        ac: 15,
+      );
+
+      when(
+        () => mockTablesDb.listRows(
+          databaseId: any(named: 'databaseId'),
+          tableId: 'npc_templates',
+          queries: any(named: 'queries'),
+        ),
+      ).thenAnswer(
+        (_) async => models.RowList.fromMap({
+          'total': 1,
+          'rows': [npcRow.toMap()..['\$id'] = 'npc_mine'],
+        }),
+      );
+
+      final notifier = container.read(npcTemplatesProvider.notifier);
+      await notifier.fetchMyTemplates();
+
+      final state = container.read(npcTemplatesProvider);
+      expect(state.status, equals(NpcTemplatesStatus.success));
+      expect(state.myTemplates, hasLength(1));
+      expect(state.myTemplates.first.name, equals('Bandit Leader'));
+      // fetchMyTemplates must not touch the public list.
+      expect(state.publicTemplates, isEmpty);
+    });
+
+    test(
+      'fetchPublicTemplates resolves creator display names from profiles',
+      () async {
+        final authUser = models.User.fromMap({
+          '\$id': 'user_123',
+          '\$createdAt': '',
+          '\$updatedAt': '',
+          'name': 'Grog',
+          'email': 'grog@vox.com',
+          'phone': '',
+          'emailVerification': false,
+          'phoneVerification': false,
+          'status': true,
+          'labels': <String>[],
+          'passwordUpdate': '',
+          'mfa': false,
+          'prefs': <String, dynamic>{},
+          'accessedAt': '',
+          'registration': '',
+          'targets': <Map<String, dynamic>>[],
+        });
+
+        final authenticatedState = AuthState(
+          status: AuthStatus.authenticated,
+          user: authUser,
+          displayName: 'Grog',
+        );
+
+        container = ProviderContainer(
+          overrides: [
+            appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+            appwriteRealtimeProvider.overrideWithValue(mockRealtime),
+            authProvider.overrideWith(
+              () => FakeAuthNotifier(authenticatedState),
+            ),
+          ],
+        );
+
+        final npcRow = buildNpcTemplateRow(
+          id: 'npc_abc',
+          creatorId: 'creator_456',
+          name: 'Goblin',
+          hpMax: 12,
+          ac: 13,
+        );
+
+        when(
+          () => mockTablesDb.listRows(
+            databaseId: any(named: 'databaseId'),
+            tableId: 'npc_templates',
+            queries: any(named: 'queries'),
+          ),
+        ).thenAnswer(
+          (_) async => models.RowList.fromMap({
+            'total': 1,
+            'rows': [npcRow.toMap()..['\$id'] = 'npc_abc'],
+          }),
+        );
+
+        when(
+          () => mockTablesDb.getRow(
+            databaseId: any(named: 'databaseId'),
+            tableId: 'profiles',
+            rowId: 'creator_456',
+          ),
+        ).thenAnswer(
+          (_) async => models.Row.fromMap({
+            '\$id': 'creator_456',
+            '\$tableId': 'profiles',
+            '\$databaseId': 'main',
+            '\$createdAt': '',
+            '\$updatedAt': '',
+            '\$permissions': <String>[],
+            '\$sequence': 0,
+            'displayName': 'Percy',
+          }),
+        );
+
+        final notifier = container.read(npcTemplatesProvider.notifier);
+        await notifier.fetchPublicTemplates();
+
+        final state = container.read(npcTemplatesProvider);
+        expect(state.creatorNames['creator_456'], equals('Percy'));
+      },
+    );
 
     test('createNpcTemplate should create template successfully', () async {
       final authUser = models.User.fromMap({
@@ -243,7 +404,79 @@ void main() {
       expect(newNpc.sourceSystem, equals('dnd5e'));
 
       final state = container.read(npcTemplatesProvider);
-      expect(state.templates, contains(newNpc));
+      expect(state.myTemplates, contains(newNpc));
+      expect(state.publicTemplates, contains(newNpc));
+      expect(state.creatorNames['user_123'], equals('Grog'));
     });
+
+    test(
+      'createNpcTemplate should not add private templates to the public list',
+      () async {
+        final authUser = models.User.fromMap({
+          '\$id': 'user_123',
+          '\$createdAt': '',
+          '\$updatedAt': '',
+          'name': 'Grog',
+          'email': 'grog@vox.com',
+          'phone': '',
+          'emailVerification': false,
+          'phoneVerification': false,
+          'status': true,
+          'labels': <String>[],
+          'passwordUpdate': '',
+          'mfa': false,
+          'prefs': <String, dynamic>{},
+          'accessedAt': '',
+          'registration': '',
+          'targets': <Map<String, dynamic>>[],
+        });
+
+        final authenticatedState = AuthState(
+          status: AuthStatus.authenticated,
+          user: authUser,
+          displayName: 'Grog',
+        );
+
+        container = ProviderContainer(
+          overrides: [
+            appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+            appwriteRealtimeProvider.overrideWithValue(mockRealtime),
+            authProvider.overrideWith(
+              () => FakeAuthNotifier(authenticatedState),
+            ),
+          ],
+        );
+
+        final npcRow = buildNpcTemplateRow(
+          id: 'npc_secret',
+          creatorId: 'user_123',
+          name: 'Secret Boss',
+          hpMax: 50,
+          ac: 18,
+          isPublic: false,
+        );
+
+        when(
+          () => mockTablesDb.createRow(
+            databaseId: any(named: 'databaseId'),
+            tableId: 'npc_templates',
+            rowId: any(named: 'rowId'),
+            data: any(named: 'data'),
+          ),
+        ).thenAnswer((_) async => npcRow..data['\$id'] = 'npc_secret');
+
+        final notifier = container.read(npcTemplatesProvider.notifier);
+        final newNpc = await notifier.createNpcTemplate(
+          'Secret Boss',
+          50,
+          18,
+          isPublic: false,
+        );
+
+        final state = container.read(npcTemplatesProvider);
+        expect(state.myTemplates, contains(newNpc));
+        expect(state.publicTemplates, isNot(contains(newNpc)));
+      },
+    );
   });
 }

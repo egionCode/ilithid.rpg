@@ -98,7 +98,10 @@ void main() {
   });
 
   testWidgets('NpcFormScreen validation and creation works', (tester) async {
-    final templatesState = NpcTemplatesState.success(const []);
+    final templatesState = NpcTemplatesState.success(
+      publicTemplates: const [],
+      myTemplates: const [],
+    );
 
     final router = GoRouter(
       initialLocation: '/npcs/new',
