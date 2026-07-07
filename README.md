@@ -1,7 +1,7 @@
 # ilithid
 
 <p align="center">
-  <img src="docs/logo.png" alt="ilithid Logo" width="250">
+  <img src="docs/logo.png" alt="ilithid Logo" width="850">
 </p>
 
 **ilithid** is a Flutter-based RPG campaign helper application designed for both Master and Players. It offers real-time synchronization, campaign management, character sheets, and community-driven NPC management using Appwrite.
