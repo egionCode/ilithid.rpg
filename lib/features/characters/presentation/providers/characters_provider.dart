@@ -113,4 +113,110 @@ class CharactersNotifier extends Notifier<CharactersState> {
       return null;
     }
   }
+
+  Future<Character?> updateCharacter(
+    String characterId, {
+    required String name,
+    required int hpMax,
+    required int ac,
+  }) async {
+    final authState = ref.read(authProvider);
+    final user = authState.user;
+    if (user == null) {
+      state = CharactersState.error(
+        'User must be logged in to update characters.',
+      );
+      return null;
+    }
+
+    state = CharactersState.loading(currentCharacters: state.characters);
+
+    try {
+      final existingChar = state.characters.firstWhere(
+        (c) => c.id == characterId,
+      );
+      final newHpCurrent = existingChar.hpCurrent > hpMax
+          ? hpMax
+          : existingChar.hpCurrent;
+
+      final characterData = {
+        'name': name,
+        'hpMax': hpMax,
+        'hpCurrent': newHpCurrent,
+        'ac': ac,
+      };
+
+      final row = await _tablesDb.updateRow(
+        databaseId: appwriteDatabaseId,
+        tableId: appwriteCharactersTableId,
+        rowId: characterId,
+        data: characterData,
+      );
+
+      final updatedChar = Character.fromRow(row);
+
+      final updatedList = state.characters.map((c) {
+        return c.id == characterId ? updatedChar : c;
+      }).toList();
+      state = CharactersState.success(updatedList);
+
+      return updatedChar;
+    } catch (e) {
+      state = CharactersState.error(
+        e.toString(),
+        currentCharacters: state.characters,
+      );
+      return null;
+    }
+  }
+
+  Future<bool> deleteCharacter(String characterId) async {
+    final authState = ref.read(authProvider);
+    final user = authState.user;
+    if (user == null) {
+      state = CharactersState.error(
+        'User must be logged in to delete characters.',
+      );
+      return false;
+    }
+
+    state = CharactersState.loading(currentCharacters: state.characters);
+
+    try {
+      await _tablesDb.deleteRow(
+        databaseId: appwriteDatabaseId,
+        tableId: appwriteCharactersTableId,
+        rowId: characterId,
+      );
+
+      try {
+        final membersResponse = await _tablesDb.listRows(
+          databaseId: appwriteDatabaseId,
+          tableId: appwriteCampaignMembersTableId,
+          queries: [Query.equal('activeCharacterId', characterId)],
+        );
+        for (final memberRow in membersResponse.rows) {
+          await _tablesDb.updateRow(
+            databaseId: appwriteDatabaseId,
+            tableId: appwriteCampaignMembersTableId,
+            rowId: memberRow.$id,
+            data: {'activeCharacterId': null},
+          );
+        }
+      } catch (_) {}
+
+      final updatedList = state.characters
+          .where((c) => c.id != characterId)
+          .toList();
+      state = CharactersState.success(updatedList);
+
+      return true;
+    } catch (e) {
+      state = CharactersState.error(
+        e.toString(),
+        currentCharacters: state.characters,
+      );
+      return false;
+    }
+  }
 }

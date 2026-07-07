@@ -9,6 +9,8 @@ import 'package:ilithid/features/campaigns/presentation/providers/campaigns_prov
 import 'package:ilithid/features/campaigns/presentation/providers/campaigns_state.dart';
 import 'package:ilithid/features/campaigns/presentation/screens/create_campaign_screen.dart';
 import 'package:ilithid/features/campaigns/presentation/screens/join_campaign_screen.dart';
+import 'package:ilithid/features/characters/presentation/screens/character_form_screen.dart';
+import 'package:ilithid/features/characters/presentation/screens/characters_list_screen.dart';
 import 'package:ilithid/features/dashboard/presentation/screens/campaign_dashboard_screen.dart';
 import 'package:ilithid/shared/components/app_button.dart';
 import 'package:ilithid/shared/components/app_card.dart';
@@ -79,6 +81,21 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
       GoRoute(
+        path: '/characters',
+        builder: (context, state) => const CharactersListScreen(),
+      ),
+      GoRoute(
+        path: '/characters/new',
+        builder: (context, state) => const CharacterFormScreen(),
+      ),
+      GoRoute(
+        path: '/characters/:id/edit',
+        builder: (context, state) {
+          final id = state.pathParameters['id'];
+          return CharacterFormScreen(characterId: id);
+        },
+      ),
+      GoRoute(
         path: '/campaigns/new',
         builder: (context, state) => const CreateCampaignScreen(),
       ),
@@ -117,6 +134,12 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('ilithid'),
         actions: [
+          IconButton(
+            key: const Key('home_characters_button'),
+            icon: const Icon(Icons.shield_outlined, color: AppColors.primary),
+            tooltip: 'Minhas Fichas',
+            onPressed: () => context.go('/characters'),
+          ),
           IconButton(
             icon: const Icon(Icons.logout, color: AppColors.damage),
             onPressed: () {
