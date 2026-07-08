@@ -49,6 +49,11 @@ const String appwriteNpcTemplatesTableId = String.fromEnvironment(
   defaultValue: 'npc_templates',
 );
 
+const String appwriteNpcInstancesTableId = String.fromEnvironment(
+  'APPWRITE_NPC_INSTANCES_TABLE_ID',
+  defaultValue: 'npc_instances',
+);
+
 class AppwriteService {
   /// Initializes the client (configurations are baked in from environment variables).
   static Future<void> initialize() async {

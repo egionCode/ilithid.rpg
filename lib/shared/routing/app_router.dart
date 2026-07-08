@@ -14,6 +14,7 @@ import 'package:ilithid/features/characters/presentation/screens/characters_list
 import 'package:ilithid/features/dashboard/presentation/screens/campaign_dashboard_screen.dart';
 import 'package:ilithid/features/npcs/presentation/screens/npc_form_screen.dart';
 import 'package:ilithid/features/npcs/presentation/screens/npcs_library_screen.dart';
+import 'package:ilithid/features/sessions/presentation/screens/session_dashboard_screen.dart';
 import 'package:ilithid/shared/components/app_button.dart';
 import 'package:ilithid/shared/components/app_card.dart';
 import 'package:ilithid/shared/state/pending_deep_link_provider.dart';
@@ -119,6 +120,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final hexId = state.pathParameters['hexId'];
           return JoinCampaignScreen(initialHexId: hexId);
+        },
+      ),
+      GoRoute(
+        path: '/campaigns/:hexId/session/:sessionId',
+        builder: (context, state) {
+          final hexId = state.pathParameters['hexId'] ?? '';
+          final sessionId = state.pathParameters['sessionId'] ?? '';
+          return SessionDashboardScreen(hexId: hexId, sessionId: sessionId);
         },
       ),
       GoRoute(
