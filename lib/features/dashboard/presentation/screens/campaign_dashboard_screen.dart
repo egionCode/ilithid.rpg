@@ -794,16 +794,10 @@ class _CampaignDashboardScreenState
                                   ),
                                   const SizedBox(height: 16),
                                   AppButton(
+                                    key: const Key('enter_session_button'),
                                     onPressed: () {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'Entrando na sessão ativa...',
-                                          ),
-                                          backgroundColor: AppColors.heal,
-                                        ),
+                                      context.go(
+                                        '/campaigns/${widget.hexId}/session/${activeSession.id}',
                                       );
                                     },
                                     child: const Text('Entrar na Sessão'),
