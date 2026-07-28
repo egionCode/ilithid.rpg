@@ -8,6 +8,7 @@ import 'package:ilithid/features/auth/presentation/providers/auth_provider.dart'
 import 'package:ilithid/features/auth/presentation/providers/auth_state.dart';
 import 'package:ilithid/features/campaigns/presentation/screens/join_campaign_screen.dart';
 import 'package:ilithid/features/sessions/presentation/providers/sessions_provider.dart';
+import 'package:ilithid/shared/services/realtime_service.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockTablesDB extends Mock implements TablesDB {}
@@ -84,6 +85,7 @@ void main() {
     when(
       () => mockRealtimeSubscription.stream,
     ).thenAnswer((_) => const Stream.empty());
+    when(() => mockRealtimeSubscription.close).thenReturn(() async {});
 
     // Register default stubs to prevent type errors on automatic reactive fetches
     when(
@@ -224,6 +226,7 @@ void main() {
         overrides: [
           appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
           appwriteRealtimeProvider.overrideWithValue(mockRealtime),
+          realtimeClientProvider.overrideWithValue(mockRealtime),
           authProvider.overrideWith(() => FakeAuthNotifier(authenticatedState)),
         ],
         child: MaterialApp.router(routerConfig: router),

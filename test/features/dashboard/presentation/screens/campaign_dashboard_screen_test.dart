@@ -15,6 +15,7 @@ import 'package:ilithid/features/characters/presentation/providers/characters_pr
 import 'package:ilithid/features/characters/presentation/providers/characters_state.dart';
 import 'package:ilithid/features/dashboard/presentation/screens/campaign_dashboard_screen.dart';
 import 'package:ilithid/features/sessions/presentation/providers/sessions_provider.dart';
+import 'package:ilithid/shared/services/realtime_service.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -145,6 +146,7 @@ void main() {
     when(
       () => mockRealtimeSubscription.stream,
     ).thenAnswer((_) => const Stream.empty());
+    when(() => mockRealtimeSubscription.close).thenReturn(() async {});
 
     when(
       () => mockTablesDb.listRows(
@@ -190,6 +192,7 @@ void main() {
           overrides: [
             appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
             appwriteRealtimeProvider.overrideWithValue(mockRealtime),
+            realtimeClientProvider.overrideWithValue(mockRealtime),
             authProvider.overrideWith(() => FakeAuthNotifier(authState)),
             campaignsProvider.overrideWith(
               () => FakeCampaignsNotifier(campaignsState, member),
@@ -300,6 +303,7 @@ void main() {
           overrides: [
             appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
             appwriteRealtimeProvider.overrideWithValue(mockRealtime),
+            realtimeClientProvider.overrideWithValue(mockRealtime),
             authProvider.overrideWith(() => FakeAuthNotifier(authState)),
             campaignsProvider.overrideWith(
               () => FakeCampaignsNotifier(campaignsState, member),
@@ -400,6 +404,7 @@ void main() {
           overrides: [
             appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
             appwriteRealtimeProvider.overrideWithValue(mockRealtime),
+            realtimeClientProvider.overrideWithValue(mockRealtime),
             authProvider.overrideWith(() => FakeAuthNotifier(authState)),
             campaignsProvider.overrideWith(
               () => FakeCampaignsNotifier(campaignsState, member),
@@ -499,6 +504,7 @@ void main() {
           overrides: [
             appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
             appwriteRealtimeProvider.overrideWithValue(mockRealtime),
+            realtimeClientProvider.overrideWithValue(mockRealtime),
             authProvider.overrideWith(() => FakeAuthNotifier(authState)),
             campaignsProvider.overrideWith(
               () => FakeCampaignsNotifier(campaignsState, member),

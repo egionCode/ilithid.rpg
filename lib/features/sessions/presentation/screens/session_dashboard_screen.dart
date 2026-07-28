@@ -5,6 +5,8 @@ import 'package:ilithid/features/campaigns/domain/campaign.dart';
 import 'package:ilithid/features/campaigns/domain/campaign_member.dart';
 import 'package:ilithid/features/campaigns/domain/user_campaign.dart';
 import 'package:ilithid/features/campaigns/presentation/providers/campaigns_provider.dart';
+import 'package:ilithid/features/characters/domain/character.dart';
+import 'package:ilithid/features/characters/presentation/providers/characters_provider.dart';
 import 'package:ilithid/features/combat/domain/combat_target.dart';
 import 'package:ilithid/features/combat/presentation/providers/party_provider.dart';
 import 'package:ilithid/features/combat/presentation/providers/party_state.dart';
@@ -122,6 +124,15 @@ class _SessionDashboardScreenState
     final npcInstancesState = ref.watch(npcInstancesProvider(widget.sessionId));
     final partyState = ref.watch(partyProvider(_campaign!.id));
 
+    final charactersState = ref.watch(charactersProvider);
+    final activeCharacterId = _member?.activeCharacterId;
+    final myCharacter = activeCharacterId == null
+        ? null
+        : charactersState.characters.cast<Character?>().firstWhere(
+            (c) => c?.id == activeCharacterId,
+            orElse: () => null,
+          );
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -186,6 +197,23 @@ class _SessionDashboardScreenState
                 ),
               ),
               const SizedBox(height: 24),
+
+              if (myCharacter != null) ...[
+                const Text(
+                  'Minha Ficha',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _MyCharacterCard(
+                  character: myCharacter,
+                  sessionId: widget.sessionId,
+                ),
+                const SizedBox(height: 24),
+              ],
 
               if (isGm) ...[
                 const Text(
@@ -342,6 +370,94 @@ class _SessionDashboardScreenState
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _MyCharacterCard extends StatelessWidget {
+  final Character character;
+  final String sessionId;
+
+  const _MyCharacterCard({required this.character, required this.sessionId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withAlpha(76)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  character.name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'CA ${character.ac}',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          HpBar(
+            currentHp: character.hpCurrent,
+            maxHp: character.hpMax,
+            tempHp: character.hpTemp,
+            height: 20,
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton.icon(
+              key: Key('my_character_combat_action_${character.id}'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+              ),
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (dialogContext) => CombatActionDialog(
+                  sessionId: sessionId,
+                  target: CombatTarget(
+                    kind: CombatTargetKind.character,
+                    id: character.id,
+                    name: character.name,
+                    hpCurrent: character.hpCurrent,
+                    hpMax: character.hpMax,
+                    hpTemp: character.hpTemp,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.flash_on, size: 18),
+              label: const Text('Aplicar Dano/Cura'),
+            ),
+          ),
+        ],
       ),
     );
   }

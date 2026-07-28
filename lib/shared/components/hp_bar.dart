@@ -38,28 +38,46 @@ class HpBar extends StatelessWidget {
         borderRadius: BorderRadius.circular(height / 2),
         child: Stack(
           children: [
-            // Row containing the health bars
-            Row(
-              children: [
-                // Current HP bar
-                Expanded(
-                  flex: (currentPercentage * 1000).toInt(),
-                  child: Container(color: AppColors.heal),
-                ),
-                // Temp HP bar
-                if (tempHp > 0)
-                  Expanded(
-                    flex: (tempPercentage * 1000).toInt(),
-                    child: Container(color: AppColors.tempHp),
+            // Bars animate towards the new percentages whenever HP changes,
+            // so combat actions (Story 7.2/7.3) read as a visible HP shift.
+            TweenAnimationBuilder<double>(
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeOut,
+              tween: Tween<double>(
+                begin: currentPercentage,
+                end: currentPercentage,
+              ),
+              builder: (context, animatedCurrent, _) {
+                return TweenAnimationBuilder<double>(
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeOut,
+                  tween: Tween<double>(
+                    begin: tempPercentage,
+                    end: tempPercentage,
                   ),
-                // Remaining space
-                Expanded(
-                  flex: ((1.0 - (currentPercentage + tempPercentage)) * 1000)
-                      .toInt()
-                      .clamp(0, 1000),
-                  child: Container(color: Colors.transparent),
-                ),
-              ],
+                  builder: (context, animatedTemp, _) {
+                    final remaining = (1.0 - (animatedCurrent + animatedTemp))
+                        .clamp(0.0, 1.0);
+                    return Row(
+                      children: [
+                        Expanded(
+                          flex: (animatedCurrent * 1000).toInt(),
+                          child: Container(color: AppColors.heal),
+                        ),
+                        if (tempHp > 0)
+                          Expanded(
+                            flex: (animatedTemp * 1000).toInt(),
+                            child: Container(color: AppColors.tempHp),
+                          ),
+                        Expanded(
+                          flex: (remaining * 1000).toInt(),
+                          child: Container(color: Colors.transparent),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
             ),
             // Text displaying HP values
             if (showText)

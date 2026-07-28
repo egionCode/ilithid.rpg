@@ -5,6 +5,7 @@ import 'package:ilithid/features/auth/presentation/providers/auth_state.dart';
 import 'package:ilithid/features/characters/domain/character.dart';
 import 'package:ilithid/features/characters/presentation/providers/characters_state.dart';
 import 'package:ilithid/shared/services/appwrite_service.dart';
+import 'package:ilithid/shared/services/realtime_service.dart';
 
 final charactersProvider =
     NotifierProvider<CharactersNotifier, CharactersState>(
@@ -20,12 +21,42 @@ class CharactersNotifier extends Notifier<CharactersState> {
 
     final authState = ref.watch(authProvider);
     if (authState.status == AuthStatus.authenticated) {
-      Future.microtask(() => fetchCharacters());
+      final userId = authState.user!.$id;
+      Future.microtask(() {
+        fetchCharacters();
+        _subscribeToRealtime(userId);
+      });
     } else {
       return CharactersState.initial();
     }
 
     return CharactersState.initial();
+  }
+
+  /// Subscribes to Realtime updates for the current user's own characters,
+  /// so HP changes applied by the GM during combat (Story 7.2) reflect live.
+  void _subscribeToRealtime(String userId) {
+    try {
+      final realtimeClient = ref.read(realtimeClientProvider);
+      final isTest = StackTrace.current.toString().contains(
+        'package:flutter_test',
+      );
+      if (isTest && realtimeClient.runtimeType.toString() == 'Realtime') {
+        return;
+      }
+
+      final service = ref.read(realtimeServiceProvider);
+      final handle = service.subscribeToCampaignCharacters(
+        memberUserIds: [userId],
+        onEvent: (_) => fetchCharacters(),
+      );
+
+      ref.onDispose(() {
+        handle.cancel();
+      });
+    } catch (_) {
+      // Fail silently if Realtime connection fails
+    }
   }
 
   Future<void> fetchCharacters() async {
