@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:ilithid/features/auth/presentation/providers/auth_provider.dart';
 import 'package:ilithid/features/campaigns/domain/campaign.dart';
 import 'package:ilithid/features/campaigns/domain/campaign_member.dart';
 import 'package:ilithid/features/campaigns/domain/user_campaign.dart';
 import 'package:ilithid/features/campaigns/presentation/providers/campaigns_provider.dart';
+import 'package:ilithid/features/campaigns/presentation/widgets/transfer_gm_dialog.dart';
 import 'package:ilithid/features/characters/domain/character.dart';
 import 'package:ilithid/features/characters/presentation/providers/characters_provider.dart';
+import 'package:ilithid/features/combat/presentation/providers/party_provider.dart';
+import 'package:ilithid/features/combat/presentation/providers/party_state.dart';
 import 'package:ilithid/features/sessions/presentation/providers/sessions_provider.dart';
 import 'package:ilithid/features/sessions/presentation/providers/sessions_state.dart';
 import 'package:ilithid/shared/components/app_button.dart';
@@ -458,7 +462,20 @@ class _CampaignDashboardScreenState
               builder: (context, snapshot) {
                 final isLoadingMember =
                     snapshot.connectionState == ConnectionState.waiting;
-                final member = snapshot.data;
+
+                // Prefer the live party roster (Story 9.1: reacts to Realtime
+                // role changes, e.g. a GM transfer) over the one-shot
+                // membership snapshot, so both the old and new GM see their
+                // dashboard flip without a manual reload.
+                final currentUserId = ref.watch(authProvider).user?.$id;
+                final partyState = ref.watch(partyProvider(_campaign!.id));
+                final liveMember = currentUserId == null
+                    ? null
+                    : partyState.members.cast<PartyMember?>().firstWhere(
+                        (m) => m?.member.userId == currentUserId,
+                        orElse: () => null,
+                      );
+                final member = liveMember?.member ?? snapshot.data;
                 final isGm = member?.role == 'gm';
 
                 Character? activeChar;
@@ -898,6 +915,24 @@ class _CampaignDashboardScreenState
                       if (isGm) ...[
                         const SizedBox(height: 12),
                         AppButton(
+                          key: const Key('transfer_gm_button'),
+                          variant: AppButtonVariant.secondary,
+                          onPressed: () => _showTransferGmDialog(context),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.swap_horiz,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                              SizedBox(width: 8),
+                              Text('Transferir Mestre'),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        AppButton(
                           key: const Key('end_campaign_button'),
                           variant: AppButtonVariant.danger,
                           onPressed: () =>
@@ -1119,6 +1154,21 @@ class _CampaignDashboardScreenState
               child: const Text('Encerrar'),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  void _showTransferGmDialog(BuildContext context) {
+    final currentUserId = ref.read(authProvider).user?.$id;
+    if (currentUserId == null || _campaign == null) return;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return TransferGmDialog(
+          campaignId: _campaign!.id,
+          currentUserId: currentUserId,
         );
       },
     );

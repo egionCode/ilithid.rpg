@@ -522,8 +522,9 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      // GM sees end_campaign_button
+      // GM sees end_campaign_button and transfer_gm_button
       expect(find.byKey(const Key('end_campaign_button')), findsOneWidget);
+      expect(find.byKey(const Key('transfer_gm_button')), findsOneWidget);
 
       // Tap to trigger first confirmation dialog
       await tester.tap(find.byKey(const Key('end_campaign_button')));
