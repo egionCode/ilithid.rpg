@@ -1,9 +1,31 @@
 import 'package:appwrite/models.dart' as models;
 import 'package:equatable/equatable.dart';
 
-/// Combat log types recorded automatically by HP actions (Story 7.2/7.3),
-/// consumed later by the visual feed (Epic 8).
-enum LogEntryType { damage, heal, tempHp }
+/// Combat log types recorded automatically by HP actions (Story 7.2/7.3/8.1),
+/// consumed later by the visual feed (Story 8.2).
+///
+/// [code] is the literal string stored in the `type` column - kept explicit
+/// (snake_case) instead of relying on the enum's `.name` so the on-disk
+/// value doesn't silently change if a member is ever renamed.
+enum LogEntryType {
+  damage('damage'),
+  heal('heal'),
+  tempHp('temp_hp'),
+  itemUse('item_use'),
+  death('death'),
+  custom('custom');
+
+  const LogEntryType(this.code);
+
+  final String code;
+
+  static LogEntryType fromCode(String? code) {
+    return LogEntryType.values.firstWhere(
+      (t) => t.code == code,
+      orElse: () => LogEntryType.custom,
+    );
+  }
+}
 
 class LogEntry extends Equatable {
   final String id;
@@ -27,10 +49,7 @@ class LogEntry extends Equatable {
     return LogEntry(
       id: row.$id,
       sessionId: (data['sessionId'] as String?) ?? '',
-      type: LogEntryType.values.firstWhere(
-        (t) => t.name == data['type'],
-        orElse: () => LogEntryType.damage,
-      ),
+      type: LogEntryType.fromCode(data['type'] as String?),
       message: (data['message'] as String?) ?? '',
       actorName: (data['actorName'] as String?) ?? '',
       timestamp: data['timestamp'] != null
@@ -47,7 +66,7 @@ class LogEntry extends Equatable {
   Map<String, dynamic> toMap() {
     return {
       'sessionId': sessionId,
-      'type': type.name,
+      'type': type.code,
       'message': message,
       'actorName': actorName,
       'timestamp': timestamp.toIso8601String(),
