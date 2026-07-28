@@ -11,6 +11,8 @@ import 'package:ilithid/features/combat/domain/combat_target.dart';
 import 'package:ilithid/features/combat/presentation/providers/party_provider.dart';
 import 'package:ilithid/features/combat/presentation/providers/party_state.dart';
 import 'package:ilithid/features/combat/presentation/widgets/combat_action_dialog.dart';
+import 'package:ilithid/features/combat/presentation/widgets/custom_log_dialog.dart';
+import 'package:ilithid/features/combat/presentation/widgets/log_feed.dart';
 import 'package:ilithid/features/npcs/domain/npc_instance.dart';
 import 'package:ilithid/features/npcs/domain/npc_template.dart';
 import 'package:ilithid/features/npcs/domain/npc_visual_state.dart';
@@ -418,6 +420,37 @@ class _SessionDashboardScreenState
                     );
                   },
                 ),
+              const SizedBox(height: 24),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Log de Combate',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  if (isGm)
+                    TextButton.icon(
+                      key: const Key('add_custom_log_button'),
+                      onPressed: () => showDialog<void>(
+                        context: context,
+                        builder: (dialogContext) =>
+                            CustomLogDialog(sessionId: widget.sessionId),
+                      ),
+                      icon: const Icon(Icons.edit_note, size: 18),
+                      label: const Text('Adicionar Nota'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 320,
+                child: LogFeed(sessionId: widget.sessionId),
+              ),
             ],
           ),
         ),

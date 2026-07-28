@@ -45,9 +45,14 @@ class LogEntry extends Equatable {
   });
 
   factory LogEntry.fromRow(models.Row row) {
-    final data = row.data;
+    return LogEntry.fromPayload(row.data, id: row.$id);
+  }
+
+  /// Builds a [LogEntry] from a Realtime event payload, which carries the
+  /// same field names as a row but not the [models.Row] wrapper.
+  factory LogEntry.fromPayload(Map<String, dynamic> data, {String? id}) {
     return LogEntry(
-      id: row.$id,
+      id: id ?? (data[r'$id'] as String?) ?? '',
       sessionId: (data['sessionId'] as String?) ?? '',
       type: LogEntryType.fromCode(data['type'] as String?),
       message: (data['message'] as String?) ?? '',
