@@ -15,6 +15,7 @@ import 'package:ilithid/features/characters/presentation/providers/characters_pr
 import 'package:ilithid/features/characters/presentation/providers/characters_state.dart';
 import 'package:ilithid/features/sessions/presentation/providers/sessions_provider.dart';
 import 'package:ilithid/features/sessions/presentation/screens/session_dashboard_screen.dart';
+import 'package:ilithid/shared/services/appwrite_service.dart';
 import 'package:ilithid/shared/services/realtime_service.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -196,5 +197,86 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('Jogadores'), findsOneWidget);
+  });
+
+  testWidgets('player sees companions in Grupo with read-only HP', (
+    tester,
+  ) async {
+    final member = CampaignMember(
+      id: 'member_1',
+      campaignId: 'camp_123',
+      userId: 'user_123',
+      activeCharacterId: 'char_789',
+      role: 'player',
+      joinedAt: DateTime.now(),
+    );
+
+    final companionMemberRow = models.Row.fromMap({
+      r'$id': 'member_2',
+      r'$tableId': appwriteCampaignMembersTableId,
+      r'$databaseId': appwriteDatabaseId,
+      r'$createdAt': '',
+      r'$updatedAt': '',
+      r'$permissions': <String>[],
+      r'$sequence': 0,
+      'campaignId': 'camp_123',
+      'userId': 'user_456',
+      'activeCharacterId': 'char_456',
+      'role': 'player',
+      'joinedAt': DateTime.now().toIso8601String(),
+    });
+
+    final companionCharacterRow = models.Row.fromMap({
+      r'$id': 'char_456',
+      r'$tableId': appwriteCharactersTableId,
+      r'$databaseId': appwriteDatabaseId,
+      r'$createdAt': '',
+      r'$updatedAt': '',
+      r'$permissions': <String>[],
+      r'$sequence': 0,
+      'userId': 'user_456',
+      'name': 'Vex Vaneth',
+      'hpCurrent': 40,
+      'hpMax': 60,
+      'hpTemp': 0,
+      'ac': 15,
+      'sourceSystem': 'manual',
+      'createdAt': DateTime.now().toIso8601String(),
+    });
+
+    when(
+      () => mockTablesDb.listRows(
+        databaseId: any(named: 'databaseId'),
+        tableId: any(named: 'tableId'),
+        queries: any(named: 'queries'),
+      ),
+    ).thenAnswer((invocation) async {
+      final tableId =
+          invocation.namedArguments[const Symbol('tableId')] as String;
+      if (tableId == appwriteCampaignMembersTableId) {
+        return models.RowList.fromMap({
+          'total': 1,
+          'rows': [companionMemberRow.toMap()],
+        });
+      }
+      if (tableId == appwriteCharactersTableId) {
+        return models.RowList.fromMap({
+          'total': 1,
+          'rows': [companionCharacterRow.toMap()],
+        });
+      }
+      return models.RowList.fromMap({
+        'total': 0,
+        'rows': <Map<String, dynamic>>[],
+      });
+    });
+
+    await tester.pumpWidget(buildTestWidget(member: member));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Grupo'), findsOneWidget);
+    expect(find.text('Vex Vaneth'), findsOneWidget);
+    expect(find.text('40 / 60 HP'), findsOneWidget);
   });
 }

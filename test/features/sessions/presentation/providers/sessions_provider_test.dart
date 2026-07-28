@@ -37,6 +37,7 @@ void main() {
     required String id,
     required String campaignId,
     required String status,
+    bool showNpcHp = false,
   }) {
     return models.Row.fromMap({
       '\$id': id,
@@ -50,6 +51,7 @@ void main() {
       'status': status,
       'startedAt': DateTime.now().toIso8601String(),
       'endedAt': null,
+      'showNpcHp': showNpcHp,
     });
   }
 
@@ -433,6 +435,65 @@ void main() {
       expect(state.activeSession, isNull);
       expect(state.sessions, hasLength(1));
       expect(state.sessions.first.status, 'finished');
+    });
+
+    test('setShowNpcHp updates the session and refetches', () async {
+      final updatedSessionRow = buildSessionRow(
+        id: 'session-id',
+        campaignId: campaignId,
+        status: 'active',
+        showNpcHp: true,
+      );
+
+      when(
+        () => mockTablesDb.updateRow(
+          databaseId: appwriteDatabaseId,
+          tableId: appwriteSessionsTableId,
+          rowId: 'session-id',
+          data: {'showNpcHp': true},
+        ),
+      ).thenAnswer((_) async => updatedSessionRow);
+
+      when(
+        () => mockTablesDb.listRows(
+          databaseId: appwriteDatabaseId,
+          tableId: appwriteSessionsTableId,
+          queries: any(named: 'queries'),
+        ),
+      ).thenAnswer(
+        (_) async => models.RowList.fromMap({
+          'total': 1,
+          'rows': [updatedSessionRow.toMap()],
+        }),
+      );
+
+      final authState = AuthState.authenticated(
+        buildMockUser(
+          id: 'user-id',
+          name: 'User Name',
+          email: 'email@example.com',
+        ),
+        'User Name',
+      );
+
+      container = ProviderContainer(
+        overrides: [
+          appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+          appwriteRealtimeProvider.overrideWithValue(mockRealtime),
+          authProvider.overrideWith(() => FakeAuthNotifier(authState)),
+        ],
+      );
+
+      container!.read(sessionsProvider(campaignId));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final result = await container!
+          .read(sessionsProvider(campaignId).notifier)
+          .setShowNpcHp('session-id', true);
+      expect(result, isTrue);
+
+      final state = container!.read(sessionsProvider(campaignId));
+      expect(state.sessions.first.showNpcHp, isTrue);
     });
 
     group('realtime subscription tests', () {

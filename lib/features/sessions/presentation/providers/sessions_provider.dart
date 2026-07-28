@@ -172,6 +172,25 @@ class SessionsNotifier extends Notifier<SessionsState> {
     }
   }
 
+  /// Sets whether players see NPCs' exact HP or only a visual state (Story 7.4).
+  Future<bool> setShowNpcHp(String sessionId, bool showNpcHp) async {
+    try {
+      await _tablesDb.updateRow(
+        databaseId: appwriteDatabaseId,
+        tableId: appwriteSessionsTableId,
+        rowId: sessionId,
+        data: {'showNpcHp': showNpcHp},
+      );
+
+      if (!ref.mounted) return true;
+
+      await checkActiveSession();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Subscribes to the Realtime events for the sessions collection to keep state in sync.
   void _subscribeToRealtime(String campaignId) {
     try {
