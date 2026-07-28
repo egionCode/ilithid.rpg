@@ -75,6 +75,7 @@ void main() {
       final result = await service.applyDamage(
         target: character,
         sessionId: 'session-1',
+        actorName: 'GM',
         amount: 30,
       );
 
@@ -91,7 +92,12 @@ void main() {
     });
 
     test('updates the npc_instances table for an NPC target', () async {
-      await service.applyDamage(target: npc, sessionId: 'session-1', amount: 4);
+      await service.applyDamage(
+        target: npc,
+        sessionId: 'session-1',
+        actorName: 'GM',
+        amount: 4,
+      );
 
       final captured = verify(
         () => mockTablesDb.updateRow(
@@ -104,10 +110,11 @@ void main() {
       expect(captured.single, equals({'hpCurrent': 6, 'hpTemp': 0}));
     });
 
-    test('writes a log entry for the session', () async {
+    test('writes a log entry matching the logs table schema', () async {
       await service.applyDamage(
         target: character,
         sessionId: 'session-1',
+        actorName: 'Mestre Victor',
         amount: 5,
       );
 
@@ -123,6 +130,9 @@ void main() {
       final logData = Map<String, dynamic>.from(captured.single as Map);
       expect(logData['sessionId'], 'session-1');
       expect(logData['type'], 'damage');
+      expect(logData['actorName'], 'Mestre Victor');
+      expect(logData.containsKey('timestamp'), isTrue);
+      expect(logData.containsKey('createdAt'), isFalse);
     });
   });
 
@@ -131,6 +141,7 @@ void main() {
       await service.applyHeal(
         target: character,
         sessionId: 'session-1',
+        actorName: 'GM',
         amount: 50,
       );
 
@@ -148,7 +159,12 @@ void main() {
 
   group('applyTempHp', () {
     test('adds temp HP without touching hpCurrent', () async {
-      await service.applyTempHp(target: npc, sessionId: 'session-1', amount: 5);
+      await service.applyTempHp(
+        target: npc,
+        sessionId: 'session-1',
+        actorName: 'GM',
+        amount: 5,
+      );
 
       final captured = verify(
         () => mockTablesDb.updateRow(
@@ -175,6 +191,7 @@ void main() {
     final result = await service.applyDamage(
       target: character,
       sessionId: 'session-1',
+      actorName: 'GM',
       amount: 5,
     );
 

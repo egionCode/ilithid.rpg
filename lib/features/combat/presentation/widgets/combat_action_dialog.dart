@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ilithid/features/auth/presentation/providers/auth_provider.dart';
 import 'package:ilithid/features/combat/domain/combat_target.dart';
 import 'package:ilithid/features/combat/presentation/providers/combat_actions_provider.dart';
 import 'package:ilithid/shared/components/app_text_field.dart';
@@ -48,20 +49,24 @@ class _CombatActionDialogState extends ConsumerState<CombatActionDialog> {
     setState(() => _isSubmitting = true);
 
     final service = ref.read(combatActionsProvider);
+    final actorName = ref.read(authProvider).displayName ?? 'Sistema';
     final success = switch (action) {
       _CombatAction.damage => await service.applyDamage(
         target: widget.target,
         sessionId: widget.sessionId,
+        actorName: actorName,
         amount: amount,
       ),
       _CombatAction.heal => await service.applyHeal(
         target: widget.target,
         sessionId: widget.sessionId,
+        actorName: actorName,
         amount: amount,
       ),
       _CombatAction.tempHp => await service.applyTempHp(
         target: widget.target,
         sessionId: widget.sessionId,
+        actorName: actorName,
         amount: amount,
       ),
     };

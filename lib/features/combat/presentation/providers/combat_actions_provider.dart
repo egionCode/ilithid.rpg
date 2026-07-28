@@ -24,6 +24,7 @@ class CombatActionsService {
   Future<bool> applyDamage({
     required CombatTarget target,
     required String sessionId,
+    required String actorName,
     required int amount,
   }) {
     final hpCurrent = CombatMath.applyDamage(target.hpCurrent, amount);
@@ -34,12 +35,14 @@ class CombatActionsService {
       hpTemp: target.hpTemp,
       logType: LogEntryType.damage,
       logMessage: '${target.name} sofreu $amount de dano.',
+      actorName: actorName,
     );
   }
 
   Future<bool> applyHeal({
     required CombatTarget target,
     required String sessionId,
+    required String actorName,
     required int amount,
   }) {
     final hpCurrent = CombatMath.applyHeal(
@@ -54,12 +57,14 @@ class CombatActionsService {
       hpTemp: target.hpTemp,
       logType: LogEntryType.heal,
       logMessage: '${target.name} recuperou $amount de HP.',
+      actorName: actorName,
     );
   }
 
   Future<bool> applyTempHp({
     required CombatTarget target,
     required String sessionId,
+    required String actorName,
     required int amount,
   }) {
     final hpTemp = CombatMath.applyTempHp(target.hpTemp, amount);
@@ -70,6 +75,7 @@ class CombatActionsService {
       hpTemp: hpTemp,
       logType: LogEntryType.tempHp,
       logMessage: '${target.name} recebeu $amount de HP temporário.',
+      actorName: actorName,
     );
   }
 
@@ -80,6 +86,7 @@ class CombatActionsService {
     required int hpTemp,
     required LogEntryType logType,
     required String logMessage,
+    required String actorName,
   }) async {
     try {
       final tableId = target.kind == CombatTargetKind.character
@@ -93,7 +100,12 @@ class CombatActionsService {
         data: {'hpCurrent': hpCurrent, 'hpTemp': hpTemp},
       );
 
-      await _writeLog(sessionId: sessionId, type: logType, message: logMessage);
+      await _writeLog(
+        sessionId: sessionId,
+        type: logType,
+        message: logMessage,
+        actorName: actorName,
+      );
 
       return true;
     } catch (_) {
@@ -105,18 +117,23 @@ class CombatActionsService {
     required String sessionId,
     required LogEntryType type,
     required String message,
+    required String actorName,
   }) async {
     try {
+      final entry = LogEntry(
+        id: '',
+        sessionId: sessionId,
+        type: type,
+        message: message,
+        actorName: actorName,
+        timestamp: DateTime.now(),
+      );
+
       await _tablesDb.createRow(
         databaseId: appwriteDatabaseId,
         tableId: appwriteLogsTableId,
         rowId: ID.unique(),
-        data: {
-          'sessionId': sessionId,
-          'type': type.name,
-          'message': message,
-          'createdAt': DateTime.now().toIso8601String(),
-        },
+        data: entry.toMap(),
       );
     } catch (_) {
       // Logging failures shouldn't block the HP update itself.
