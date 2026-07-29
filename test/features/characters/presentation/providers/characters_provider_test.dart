@@ -6,9 +6,14 @@ import 'package:ilithid/features/auth/presentation/providers/auth_provider.dart'
 import 'package:ilithid/features/auth/presentation/providers/auth_state.dart';
 import 'package:ilithid/features/characters/presentation/providers/characters_provider.dart';
 import 'package:ilithid/features/characters/presentation/providers/characters_state.dart';
+import 'package:ilithid/shared/services/realtime_service.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockTablesDB extends Mock implements TablesDB {}
+
+class MockRealtime extends Mock implements Realtime {}
+
+class MockRealtimeSubscription extends Mock implements RealtimeSubscription {}
 
 class FakeAuthNotifier extends AuthNotifier {
   final AuthState _initialState;
@@ -23,6 +28,8 @@ class FakeAuthNotifier extends AuthNotifier {
 
 void main() {
   late MockTablesDB mockTablesDb;
+  late MockRealtime mockRealtime;
+  late MockRealtimeSubscription mockRealtimeSubscription;
   late ProviderContainer container;
 
   models.Row buildCharacterRow({
@@ -53,6 +60,17 @@ void main() {
 
   setUp(() {
     mockTablesDb = MockTablesDB();
+    mockRealtime = MockRealtime();
+    mockRealtimeSubscription = MockRealtimeSubscription();
+
+    when(
+      () => mockRealtime.subscribe(any()),
+    ).thenReturn(mockRealtimeSubscription);
+    when(
+      () => mockRealtimeSubscription.stream,
+    ).thenAnswer((_) => const Stream.empty());
+    when(() => mockRealtimeSubscription.close).thenReturn(() async {});
+
     // Default fallback stub for listRows queries
     when(
       () => mockTablesDb.listRows(
@@ -102,6 +120,7 @@ void main() {
       container = ProviderContainer(
         overrides: [
           appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+          realtimeClientProvider.overrideWithValue(mockRealtime),
           authProvider.overrideWith(
             () => FakeAuthNotifier(AuthState.initial()),
           ),
@@ -138,6 +157,7 @@ void main() {
       container = ProviderContainer(
         overrides: [
           appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+          realtimeClientProvider.overrideWithValue(mockRealtime),
           authProvider.overrideWith(() => FakeAuthNotifier(authenticatedState)),
         ],
       );
@@ -177,6 +197,7 @@ void main() {
         container = ProviderContainer(
           overrides: [
             appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+            realtimeClientProvider.overrideWithValue(mockRealtime),
             authProvider.overrideWith(
               () => FakeAuthNotifier(authenticatedState),
             ),
@@ -244,6 +265,7 @@ void main() {
         container = ProviderContainer(
           overrides: [
             appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+            realtimeClientProvider.overrideWithValue(mockRealtime),
             authProvider.overrideWith(
               () => FakeAuthNotifier(authenticatedState),
             ),
@@ -346,6 +368,7 @@ void main() {
         container = ProviderContainer(
           overrides: [
             appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+            realtimeClientProvider.overrideWithValue(mockRealtime),
             authProvider.overrideWith(
               () => FakeAuthNotifier(authenticatedState),
             ),

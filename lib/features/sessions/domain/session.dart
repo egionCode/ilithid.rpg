@@ -8,12 +8,17 @@ class Session extends Equatable {
   final DateTime startedAt;
   final DateTime? endedAt;
 
+  /// GM decision (Story 7.4): whether players see NPCs' exact HP numbers or
+  /// only a visual health state (Saudável/Machucado/Quase Morto/Morto).
+  final bool showNpcHp;
+
   const Session({
     required this.id,
     required this.campaignId,
     required this.status,
     required this.startedAt,
     this.endedAt,
+    this.showNpcHp = false,
   });
 
   /// Factory constructor to create a Session from a database row.
@@ -29,6 +34,7 @@ class Session extends Equatable {
       endedAt: data['endedAt'] != null
           ? DateTime.parse(data['endedAt'] as String)
           : null,
+      showNpcHp: (data['showNpcHp'] as bool?) ?? false,
     );
   }
 
@@ -39,9 +45,17 @@ class Session extends Equatable {
       'status': status,
       'startedAt': startedAt.toIso8601String(),
       if (endedAt != null) 'endedAt': endedAt!.toIso8601String(),
+      'showNpcHp': showNpcHp,
     };
   }
 
   @override
-  List<Object?> get props => [id, campaignId, status, startedAt, endedAt];
+  List<Object?> get props => [
+    id,
+    campaignId,
+    status,
+    startedAt,
+    endedAt,
+    showNpcHp,
+  ];
 }

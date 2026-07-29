@@ -5,12 +5,21 @@ import 'package:ilithid/features/campaigns/domain/campaign.dart';
 import 'package:ilithid/features/campaigns/domain/campaign_member.dart';
 import 'package:ilithid/features/campaigns/domain/user_campaign.dart';
 import 'package:ilithid/features/campaigns/presentation/providers/campaigns_provider.dart';
+import 'package:ilithid/features/characters/domain/character.dart';
+import 'package:ilithid/features/characters/presentation/providers/characters_provider.dart';
+import 'package:ilithid/features/combat/domain/combat_target.dart';
+import 'package:ilithid/features/combat/presentation/providers/party_provider.dart';
+import 'package:ilithid/features/combat/presentation/providers/party_state.dart';
+import 'package:ilithid/features/combat/presentation/widgets/combat_action_dialog.dart';
 import 'package:ilithid/features/npcs/domain/npc_instance.dart';
 import 'package:ilithid/features/npcs/domain/npc_template.dart';
+import 'package:ilithid/features/npcs/domain/npc_visual_state.dart';
 import 'package:ilithid/features/npcs/presentation/providers/npc_instances_provider.dart';
 import 'package:ilithid/features/npcs/presentation/providers/npc_instances_state.dart';
 import 'package:ilithid/features/npcs/presentation/providers/npc_templates_provider.dart';
 import 'package:ilithid/features/npcs/presentation/providers/npc_templates_state.dart';
+import 'package:ilithid/features/sessions/domain/session.dart';
+import 'package:ilithid/features/sessions/presentation/providers/sessions_provider.dart';
 import 'package:ilithid/shared/components/app_button.dart';
 import 'package:ilithid/shared/components/app_card.dart';
 import 'package:ilithid/shared/components/app_text_field.dart';
@@ -116,6 +125,27 @@ class _SessionDashboardScreenState
 
     final isGm = _member?.role == 'gm';
     final npcInstancesState = ref.watch(npcInstancesProvider(widget.sessionId));
+    final partyState = ref.watch(partyProvider(_campaign!.id));
+    final sessionsState = ref.watch(sessionsProvider(_campaign!.id));
+
+    final currentSession = sessionsState.sessions.cast<Session?>().firstWhere(
+      (s) => s?.id == widget.sessionId,
+      orElse: () => sessionsState.activeSession,
+    );
+    final showNpcHp = currentSession?.showNpcHp ?? false;
+
+    final charactersState = ref.watch(charactersProvider);
+    final activeCharacterId = _member?.activeCharacterId;
+    final myCharacter = activeCharacterId == null
+        ? null
+        : charactersState.characters.cast<Character?>().firstWhere(
+            (c) => c?.id == activeCharacterId,
+            orElse: () => null,
+          );
+
+    final companions = partyState.members
+        .where((m) => m.character != null && m.character!.id != myCharacter?.id)
+        .toList();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -182,6 +212,85 @@ class _SessionDashboardScreenState
               ),
               const SizedBox(height: 24),
 
+              if (myCharacter != null) ...[
+                const Text(
+                  'Minha Ficha',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _MyCharacterCard(
+                  character: myCharacter,
+                  sessionId: widget.sessionId,
+                ),
+                const SizedBox(height: 24),
+              ],
+
+              if (!isGm && companions.isNotEmpty) ...[
+                const Text(
+                  'Grupo',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ...companions.map(
+                  (partyMember) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _CompanionCard(character: partyMember.character!),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+
+              if (isGm) ...[
+                const Text(
+                  'Jogadores',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (partyState.status == PartyStatus.loading &&
+                    partyState.members.isEmpty)
+                  const Center(
+                    child: CircularProgressIndicator(color: AppColors.primary),
+                  )
+                else if (partyState.members
+                    .where((m) => m.character != null)
+                    .isEmpty)
+                  const AppCard(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16.0),
+                      child: Text(
+                        'Nenhum jogador com ficha ativa nesta campanha.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ),
+                  )
+                else
+                  ...partyState.members
+                      .where((m) => m.character != null)
+                      .map(
+                        (partyMember) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _PartyMemberCard(
+                            partyMember: partyMember,
+                            sessionId: widget.sessionId,
+                          ),
+                        ),
+                      ),
+                const SizedBox(height: 24),
+              ],
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -206,6 +315,23 @@ class _SessionDashboardScreenState
                     ),
                 ],
               ),
+              if (isGm)
+                SwitchListTile(
+                  key: const Key('toggle_show_npc_hp'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Mostrar HP exato dos NPCs para os jogadores',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  value: showNpcHp,
+                  activeThumbColor: AppColors.primary,
+                  onChanged: (value) => ref
+                      .read(sessionsProvider(_campaign!.id).notifier)
+                      .setShowNpcHp(widget.sessionId, value),
+                ),
               const SizedBox(height: 16),
 
               if (npcInstancesState.status == NpcInstancesStatus.loading &&
@@ -285,6 +411,7 @@ class _SessionDashboardScreenState
                         return _NpcInstanceCard(
                           instance: instance,
                           isGm: isGm,
+                          showNpcHp: showNpcHp,
                           sessionId: widget.sessionId,
                         );
                       },
@@ -299,14 +426,281 @@ class _SessionDashboardScreenState
   }
 }
 
+class _CompanionCard extends StatelessWidget {
+  final Character character;
+
+  const _CompanionCard({required this.character});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.heal.withAlpha(26),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.person, color: AppColors.heal, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  character.name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                HpBar(
+                  currentHp: character.hpCurrent,
+                  maxHp: character.hpMax,
+                  tempHp: character.hpTemp,
+                  height: 16,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NpcVisualStateBadge extends StatelessWidget {
+  final NpcVisualState state;
+
+  const _NpcVisualStateBadge({required this.state});
+
+  Color get _color {
+    switch (state) {
+      case NpcVisualState.healthy:
+        return AppColors.heal;
+      case NpcVisualState.wounded:
+        return AppColors.tempHp;
+      case NpcVisualState.nearDeath:
+        return AppColors.damage;
+      case NpcVisualState.dead:
+        return AppColors.textMuted;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: _color.withAlpha(38),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _color.withAlpha(102)),
+      ),
+      child: Text(
+        state.label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: _color,
+        ),
+      ),
+    );
+  }
+}
+
+class _MyCharacterCard extends StatelessWidget {
+  final Character character;
+  final String sessionId;
+
+  const _MyCharacterCard({required this.character, required this.sessionId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withAlpha(76)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  character.name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'CA ${character.ac}',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          HpBar(
+            currentHp: character.hpCurrent,
+            maxHp: character.hpMax,
+            tempHp: character.hpTemp,
+            height: 20,
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton.icon(
+              key: Key('my_character_combat_action_${character.id}'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+              ),
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (dialogContext) => CombatActionDialog(
+                  sessionId: sessionId,
+                  target: CombatTarget(
+                    kind: CombatTargetKind.character,
+                    id: character.id,
+                    name: character.name,
+                    hpCurrent: character.hpCurrent,
+                    hpMax: character.hpMax,
+                    hpTemp: character.hpTemp,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.flash_on, size: 18),
+              label: const Text('Aplicar Dano/Cura'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PartyMemberCard extends StatelessWidget {
+  final PartyMember partyMember;
+  final String sessionId;
+
+  const _PartyMemberCard({required this.partyMember, required this.sessionId});
+
+  @override
+  Widget build(BuildContext context) {
+    final character = partyMember.character!;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.heal.withAlpha(26),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.person, color: AppColors.heal, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  character.name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                HpBar(
+                  currentHp: character.hpCurrent,
+                  maxHp: character.hpMax,
+                  tempHp: character.hpTemp,
+                  height: 16,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          IconButton(
+            key: Key('party_combat_action_${character.id}'),
+            icon: const Icon(
+              Icons.flash_on,
+              color: AppColors.primary,
+              size: 22,
+            ),
+            tooltip: 'Ações de combate',
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (dialogContext) => CombatActionDialog(
+                sessionId: sessionId,
+                target: CombatTarget(
+                  kind: CombatTargetKind.character,
+                  id: character.id,
+                  name: character.name,
+                  hpCurrent: character.hpCurrent,
+                  hpMax: character.hpMax,
+                  hpTemp: character.hpTemp,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _NpcInstanceCard extends ConsumerWidget {
   final NpcInstance instance;
   final bool isGm;
+  final bool showNpcHp;
   final String sessionId;
 
   const _NpcInstanceCard({
     required this.instance,
     required this.isGm,
+    required this.showNpcHp,
     required this.sessionId,
   });
 
@@ -372,17 +766,48 @@ class _NpcInstanceCard extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                HpBar(
-                  currentHp: instance.hpCurrent,
-                  maxHp: instance.hpMax,
-                  tempHp: instance.hpTemp,
-                  height: 16,
-                ),
+                if (isGm || showNpcHp)
+                  HpBar(
+                    currentHp: instance.hpCurrent,
+                    maxHp: instance.hpMax,
+                    tempHp: instance.hpTemp,
+                    height: 16,
+                  )
+                else
+                  _NpcVisualStateBadge(
+                    state: NpcVisualState.fromHp(
+                      instance.hpCurrent,
+                      instance.hpMax,
+                    ),
+                  ),
               ],
             ),
           ),
           if (isGm) ...[
             const SizedBox(width: 12),
+            IconButton(
+              key: Key('npc_combat_action_${instance.id}'),
+              icon: const Icon(
+                Icons.flash_on,
+                color: AppColors.primary,
+                size: 22,
+              ),
+              tooltip: 'Ações de combate',
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (dialogContext) => CombatActionDialog(
+                  sessionId: sessionId,
+                  target: CombatTarget(
+                    kind: CombatTargetKind.npcInstance,
+                    id: instance.id,
+                    name: instance.name,
+                    hpCurrent: instance.hpCurrent,
+                    hpMax: instance.hpMax,
+                    hpTemp: instance.hpTemp,
+                  ),
+                ),
+              ),
+            ),
             IconButton(
               icon: const Icon(
                 Icons.favorite_outline,
@@ -390,7 +815,7 @@ class _NpcInstanceCard extends ConsumerWidget {
                 size: 22,
               ),
               onPressed: () => _showAdjustHpDialog(context, ref),
-              tooltip: 'Ajustar HP',
+              tooltip: 'Ajustar HP (valor absoluto)',
             ),
             IconButton(
               icon: const Icon(
