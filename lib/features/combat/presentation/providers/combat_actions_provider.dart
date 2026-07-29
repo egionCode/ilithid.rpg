@@ -79,6 +79,39 @@ class CombatActionsService {
     );
   }
 
+  /// Writes a free-form log entry for the GM (Story 8.1 `custom` type),
+  /// e.g. narrative notes not tied to a specific HP change.
+  ///
+  /// Unlike [_writeLog] (used as a side effect of HP updates, where a
+  /// logging failure shouldn't block the HP change), this IS the action,
+  /// so failures are reported back instead of swallowed.
+  Future<bool> writeCustomLog({
+    required String sessionId,
+    required String actorName,
+    required String message,
+  }) async {
+    try {
+      final entry = LogEntry(
+        id: '',
+        sessionId: sessionId,
+        type: LogEntryType.custom,
+        message: message,
+        actorName: actorName,
+        timestamp: DateTime.now(),
+      );
+
+      await _tablesDb.createRow(
+        databaseId: appwriteDatabaseId,
+        tableId: appwriteLogsTableId,
+        rowId: ID.unique(),
+        data: entry.toMap(),
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> _updateHp({
     required CombatTarget target,
     required String sessionId,
@@ -106,6 +139,17 @@ class CombatActionsService {
         message: logMessage,
         actorName: actorName,
       );
+
+      // A hit that brings hpCurrent from alive to zero gets its own death
+      // log entry, on top of the damage entry (Story 8.1).
+      if (target.hpCurrent > 0 && hpCurrent == 0) {
+        await _writeLog(
+          sessionId: sessionId,
+          type: LogEntryType.death,
+          message: '${target.name} foi derrotado(a).',
+          actorName: actorName,
+        );
+      }
 
       return true;
     } catch (_) {

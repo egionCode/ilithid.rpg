@@ -134,6 +134,94 @@ void main() {
       expect(logData.containsKey('timestamp'), isTrue);
       expect(logData.containsKey('createdAt'), isFalse);
     });
+
+    test(
+      'also writes a death log when damage brings hpCurrent to zero',
+      () async {
+        await service.applyDamage(
+          target: npc,
+          sessionId: 'session-1',
+          actorName: 'GM',
+          amount: 100,
+        );
+
+        final calls = verify(
+          () => mockTablesDb.createRow(
+            databaseId: appwriteDatabaseId,
+            tableId: appwriteLogsTableId,
+            rowId: any(named: 'rowId'),
+            data: captureAny(named: 'data'),
+          ),
+        ).captured;
+
+        expect(calls, hasLength(2));
+        final types = calls
+            .map((c) => Map<String, dynamic>.from(c as Map)['type'])
+            .toList();
+        expect(types, containsAll(['damage', 'death']));
+      },
+    );
+
+    test('does not write a death log when the target survives', () async {
+      await service.applyDamage(
+        target: npc,
+        sessionId: 'session-1',
+        actorName: 'GM',
+        amount: 1,
+      );
+
+      verify(
+        () => mockTablesDb.createRow(
+          databaseId: appwriteDatabaseId,
+          tableId: appwriteLogsTableId,
+          rowId: any(named: 'rowId'),
+          data: any(named: 'data'),
+        ),
+      ).called(1);
+    });
+  });
+
+  group('writeCustomLog', () {
+    test('writes a custom log entry with the GM message', () async {
+      final result = await service.writeCustomLog(
+        sessionId: 'session-1',
+        actorName: 'Mestre Victor',
+        message: 'A porta secreta foi encontrada.',
+      );
+
+      expect(result, isTrue);
+      final captured = verify(
+        () => mockTablesDb.createRow(
+          databaseId: appwriteDatabaseId,
+          tableId: appwriteLogsTableId,
+          rowId: any(named: 'rowId'),
+          data: captureAny(named: 'data'),
+        ),
+      ).captured;
+
+      final logData = Map<String, dynamic>.from(captured.single as Map);
+      expect(logData['type'], 'custom');
+      expect(logData['message'], 'A porta secreta foi encontrada.');
+    });
+
+    test('returns false when the write fails', () async {
+      when(
+        () => mockTablesDb.createRow(
+          databaseId: any(named: 'databaseId'),
+          tableId: any(named: 'tableId'),
+          rowId: any(named: 'rowId'),
+          data: any(named: 'data'),
+        ),
+      ).thenThrow(Exception('network error'));
+
+      final result = await service.writeCustomLog(
+        sessionId: 'session-1',
+        actorName: 'GM',
+        message: 'oops',
+      );
+
+      expect(result, isFalse);
+    });
   });
 
   group('applyHeal', () {
