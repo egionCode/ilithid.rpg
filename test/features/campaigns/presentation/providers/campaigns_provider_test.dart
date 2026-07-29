@@ -62,6 +62,7 @@ void main() {
     required String id,
     required String campaignId,
     required String userId,
+    String role = 'gm',
   }) {
     return models.Row.fromMap({
       '\$id': id,
@@ -73,7 +74,7 @@ void main() {
       '\$sequence': 0,
       'campaignId': campaignId,
       'userId': userId,
-      'role': 'gm',
+      'role': role,
       'joinedAt': DateTime.now().toIso8601String(),
     });
   }
@@ -662,6 +663,246 @@ void main() {
 
     group('Verification Matchers', () {
       test('fake match registration for eq', () {});
+    });
+
+    group('transferGm', () {
+      final gmUser = models.User.fromMap({
+        '\$id': 'gm-id',
+        '\$createdAt': '',
+        '\$updatedAt': '',
+        'name': 'GM',
+        'email': 'gm@example.com',
+        'phone': '',
+        'status': true,
+        'labels': <String>[],
+        'passwordUpdate': '',
+        'emailVerification': true,
+        'phoneVerification': false,
+        'mfa': false,
+        'prefs': <String, dynamic>{},
+        'accessedAt': '',
+        'registration': '',
+        'targets': <Map<String, dynamic>>[],
+      });
+
+      ProviderContainer buildContainer() {
+        return ProviderContainer(
+          overrides: [
+            appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+            appwriteRealtimeProvider.overrideWithValue(mockRealtime),
+            authProvider.overrideWith(
+              () => FakeAuthNotifier(AuthState.authenticated(gmUser, 'GM')),
+            ),
+          ],
+        );
+      }
+
+      test('updates campaigns.gmUserId and both members\' roles', () async {
+        when(
+          () => mockTablesDb.listRows(
+            databaseId: appwriteDatabaseId,
+            tableId: appwriteCampaignMembersTableId,
+            queries: any(named: 'queries'),
+          ),
+        ).thenAnswer(
+          (_) async => models.RowList(
+            total: 2,
+            rows: [
+              buildMemberRow(
+                id: 'member-gm',
+                campaignId: 'campaign-1',
+                userId: 'gm-id',
+                role: 'gm',
+              ),
+              buildMemberRow(
+                id: 'member-player',
+                campaignId: 'campaign-1',
+                userId: 'player-id',
+                role: 'player',
+              ),
+            ],
+          ),
+        );
+
+        when(
+          () => mockTablesDb.updateRow(
+            databaseId: any(named: 'databaseId'),
+            tableId: any(named: 'tableId'),
+            rowId: any(named: 'rowId'),
+            data: any(named: 'data'),
+          ),
+        ).thenAnswer(
+          (_) async => buildCampaignRow(
+            id: 'campaign-1',
+            name: 'Test',
+            hexId: 'abc123',
+            gmUserId: 'player-id',
+          ),
+        );
+
+        container = buildContainer();
+
+        final result = await container
+            .read(campaignsProvider.notifier)
+            .transferGm(campaignId: 'campaign-1', newGmUserId: 'player-id');
+
+        expect(result, isTrue);
+
+        verify(
+          () => mockTablesDb.updateRow(
+            databaseId: appwriteDatabaseId,
+            tableId: appwriteCampaignsTableId,
+            rowId: 'campaign-1',
+            data: {'gmUserId': 'player-id'},
+          ),
+        ).called(1);
+
+        verify(
+          () => mockTablesDb.updateRow(
+            databaseId: appwriteDatabaseId,
+            tableId: appwriteCampaignMembersTableId,
+            rowId: 'member-gm',
+            data: {'role': 'player'},
+          ),
+        ).called(1);
+
+        verify(
+          () => mockTablesDb.updateRow(
+            databaseId: appwriteDatabaseId,
+            tableId: appwriteCampaignMembersTableId,
+            rowId: 'member-player',
+            data: {'role': 'gm'},
+          ),
+        ).called(1);
+      });
+
+      test('fails when the caller is not the current GM', () async {
+        when(
+          () => mockTablesDb.listRows(
+            databaseId: appwriteDatabaseId,
+            tableId: appwriteCampaignMembersTableId,
+            queries: any(named: 'queries'),
+          ),
+        ).thenAnswer(
+          (_) async => models.RowList(
+            total: 2,
+            rows: [
+              buildMemberRow(
+                id: 'member-gm',
+                campaignId: 'campaign-1',
+                userId: 'gm-id',
+                role: 'player',
+              ),
+              buildMemberRow(
+                id: 'member-player',
+                campaignId: 'campaign-1',
+                userId: 'player-id',
+                role: 'gm',
+              ),
+            ],
+          ),
+        );
+
+        container = buildContainer();
+
+        final result = await container
+            .read(campaignsProvider.notifier)
+            .transferGm(campaignId: 'campaign-1', newGmUserId: 'player-id');
+
+        expect(result, isFalse);
+        verifyNever(
+          () => mockTablesDb.updateRow(
+            databaseId: any(named: 'databaseId'),
+            tableId: any(named: 'tableId'),
+            rowId: any(named: 'rowId'),
+            data: any(named: 'data'),
+          ),
+        );
+      });
+
+      test(
+        'rolls back campaigns.gmUserId when demoting the old GM fails',
+        () async {
+          when(
+            () => mockTablesDb.listRows(
+              databaseId: appwriteDatabaseId,
+              tableId: appwriteCampaignMembersTableId,
+              queries: any(named: 'queries'),
+            ),
+          ).thenAnswer(
+            (_) async => models.RowList(
+              total: 2,
+              rows: [
+                buildMemberRow(
+                  id: 'member-gm',
+                  campaignId: 'campaign-1',
+                  userId: 'gm-id',
+                  role: 'gm',
+                ),
+                buildMemberRow(
+                  id: 'member-player',
+                  campaignId: 'campaign-1',
+                  userId: 'player-id',
+                  role: 'player',
+                ),
+              ],
+            ),
+          );
+
+          when(
+            () => mockTablesDb.updateRow(
+              databaseId: appwriteDatabaseId,
+              tableId: appwriteCampaignsTableId,
+              rowId: 'campaign-1',
+              data: any(named: 'data'),
+            ),
+          ).thenAnswer(
+            (_) async => buildCampaignRow(
+              id: 'campaign-1',
+              name: 'Test',
+              hexId: 'abc123',
+              gmUserId: 'player-id',
+            ),
+          );
+
+          when(
+            () => mockTablesDb.updateRow(
+              databaseId: appwriteDatabaseId,
+              tableId: appwriteCampaignMembersTableId,
+              rowId: 'member-gm',
+              data: any(named: 'data'),
+            ),
+          ).thenThrow(Exception('network error'));
+
+          container = buildContainer();
+
+          final result = await container
+              .read(campaignsProvider.notifier)
+              .transferGm(campaignId: 'campaign-1', newGmUserId: 'player-id');
+
+          expect(result, isFalse);
+
+          // gmUserId set to the new GM, then rolled back to the caller.
+          verify(
+            () => mockTablesDb.updateRow(
+              databaseId: appwriteDatabaseId,
+              tableId: appwriteCampaignsTableId,
+              rowId: 'campaign-1',
+              data: any(named: 'data'),
+            ),
+          ).called(2);
+
+          // Never promoted the new GM, since the demotion step failed first.
+          verifyNever(
+            () => mockTablesDb.updateRow(
+              databaseId: appwriteDatabaseId,
+              tableId: appwriteCampaignMembersTableId,
+              rowId: 'member-player',
+              data: any(named: 'data'),
+            ),
+          );
+        },
+      );
     });
   });
 }

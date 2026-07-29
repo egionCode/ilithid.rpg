@@ -400,4 +400,101 @@ class CampaignsNotifier extends Notifier<CampaignsState> {
       return false;
     }
   }
+
+  /// Transfers the GM role to another member of the campaign (Story 9.1).
+  ///
+  /// Client-side guard only checks the caller is the current `gmUserId`;
+  /// the real authorization boundary must be enforced by Appwrite
+  /// collection permissions on `campaigns`/`campaign_members` (only the
+  /// current GM should have write access), which is outside this codebase.
+  ///
+  /// Appwrite has no cross-collection transactions, so this is not truly
+  /// atomic: if a later step fails, earlier ones are rolled back on a
+  /// best-effort basis rather than left half-applied.
+  Future<bool> transferGm({
+    required String campaignId,
+    required String newGmUserId,
+  }) async {
+    final authState = ref.read(authProvider);
+    final currentUser = authState.user;
+    if (currentUser == null) return false;
+
+    try {
+      final membersResponse = await _tablesDb.listRows(
+        databaseId: appwriteDatabaseId,
+        tableId: appwriteCampaignMembersTableId,
+        queries: [Query.equal('campaignId', campaignId)],
+      );
+      final members = membersResponse.rows
+          .map((row) => CampaignMember.fromRow(row))
+          .toList();
+
+      final oldGmMember = members.cast<CampaignMember?>().firstWhere(
+        (m) => m?.userId == currentUser.$id,
+        orElse: () => null,
+      );
+      final newGmMember = members.cast<CampaignMember?>().firstWhere(
+        (m) => m?.userId == newGmUserId,
+        orElse: () => null,
+      );
+
+      if (oldGmMember == null ||
+          oldGmMember.role != 'gm' ||
+          newGmMember == null) {
+        return false;
+      }
+
+      await _tablesDb.updateRow(
+        databaseId: appwriteDatabaseId,
+        tableId: appwriteCampaignsTableId,
+        rowId: campaignId,
+        data: {'gmUserId': newGmUserId},
+      );
+
+      try {
+        await _tablesDb.updateRow(
+          databaseId: appwriteDatabaseId,
+          tableId: appwriteCampaignMembersTableId,
+          rowId: oldGmMember.id,
+          data: {'role': 'player'},
+        );
+      } catch (e) {
+        await _tablesDb.updateRow(
+          databaseId: appwriteDatabaseId,
+          tableId: appwriteCampaignsTableId,
+          rowId: campaignId,
+          data: {'gmUserId': currentUser.$id},
+        );
+        rethrow;
+      }
+
+      try {
+        await _tablesDb.updateRow(
+          databaseId: appwriteDatabaseId,
+          tableId: appwriteCampaignMembersTableId,
+          rowId: newGmMember.id,
+          data: {'role': 'gm'},
+        );
+      } catch (e) {
+        await _tablesDb.updateRow(
+          databaseId: appwriteDatabaseId,
+          tableId: appwriteCampaignsTableId,
+          rowId: campaignId,
+          data: {'gmUserId': currentUser.$id},
+        );
+        await _tablesDb.updateRow(
+          databaseId: appwriteDatabaseId,
+          tableId: appwriteCampaignMembersTableId,
+          rowId: oldGmMember.id,
+          data: {'role': 'gm'},
+        );
+        rethrow;
+      }
+
+      await fetchCampaigns();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }
