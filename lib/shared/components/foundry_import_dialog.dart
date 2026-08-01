@@ -15,10 +15,16 @@ class FoundryImportDialog extends StatefulWidget {
   final Future<bool> Function(FoundryParseResult parsed, String rawJson)
   onConfirm;
 
+  /// Overrides the real file picker in tests, since `FilePicker.pickFiles`
+  /// talks to a platform channel that isn't available under
+  /// `flutter_test`.
+  final Future<FilePickerResult?> Function()? pickFile;
+
   const FoundryImportDialog({
     super.key,
     required this.title,
     required this.onConfirm,
+    this.pickFile,
   });
 
   @override
@@ -35,11 +41,14 @@ class _FoundryImportDialogState extends State<FoundryImportDialog> {
     setState(() => _error = null);
 
     try {
-      final result = await FilePicker.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-        withData: true,
-      );
+      final pick =
+          widget.pickFile ??
+          () => FilePicker.pickFiles(
+            type: FileType.custom,
+            allowedExtensions: ['json'],
+            withData: true,
+          );
+      final result = await pick();
       if (result == null || result.files.isEmpty) return;
 
       final bytes = result.files.single.bytes;
@@ -134,7 +143,12 @@ class _FoundryImportDialogState extends State<FoundryImportDialog> {
                   children: [
                     Icon(Icons.upload_file, color: Colors.white, size: 18),
                     SizedBox(width: 8),
-                    Text('Selecionar arquivo .json'),
+                    Flexible(
+                      child: Text(
+                        'Selecionar arquivo .json',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
               )

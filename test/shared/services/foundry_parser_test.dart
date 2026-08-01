@@ -69,7 +69,10 @@ void main() {
     });
 
     test('throws a friendly error when name is missing', () {
-      final json = jsonEncode({'type': 'character', 'system': {}});
+      final json = jsonEncode({
+        'type': 'character',
+        'system': <String, dynamic>{},
+      });
       expect(
         () => FoundryParser.parse(json),
         throwsA(
@@ -129,7 +132,9 @@ void main() {
 
     test('reports unrecognized top-level fields for future support', () {
       final result = FoundryParser.parse(
-        _actorJson(extraTopLevel: {'items': [], 'effects': []}),
+        _actorJson(
+          extraTopLevel: {'items': <dynamic>[], 'effects': <dynamic>[]},
+        ),
       );
 
       expect(result.unrecognizedFields, containsAll(['items', 'effects']));
