@@ -12,6 +12,7 @@ import 'package:ilithid/features/npcs/presentation/providers/npc_templates_provi
 import 'package:ilithid/features/npcs/presentation/providers/npc_templates_state.dart';
 import 'package:ilithid/shared/components/app_card.dart';
 import 'package:ilithid/shared/components/app_text_field.dart';
+import 'package:ilithid/shared/components/foundry_import_dialog.dart';
 import 'package:ilithid/shared/theme/app_colors.dart';
 
 class NpcsLibraryScreen extends ConsumerStatefulWidget {
@@ -40,6 +41,29 @@ class _NpcsLibraryScreenState extends ConsumerState<NpcsLibraryScreen>
     super.dispose();
   }
 
+  void _showImportDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return FoundryImportDialog(
+          title: 'Importar NPC do Foundry',
+          onConfirm: (parsed, rawJson) async {
+            final template = await ref
+                .read(npcTemplatesProvider.notifier)
+                .createNpcTemplate(
+                  parsed.name,
+                  parsed.hpMax,
+                  parsed.ac,
+                  sourceSystem: 'dnd5e',
+                  isPublic: true,
+                );
+            return template != null;
+          },
+        );
+      },
+    );
+  }
+
   List<NpcTemplate> _filterByName(List<NpcTemplate> templates) {
     if (_searchQuery.isEmpty) return templates;
     final query = _searchQuery.toLowerCase();
@@ -63,6 +87,14 @@ class _NpcsLibraryScreenState extends ConsumerState<NpcsLibraryScreen>
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/'),
         ),
+        actions: [
+          IconButton(
+            key: const Key('import_foundry_npc_button'),
+            icon: const Icon(Icons.upload_file),
+            tooltip: 'Importar do Foundry',
+            onPressed: () => _showImportDialog(context),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
