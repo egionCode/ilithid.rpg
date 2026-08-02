@@ -279,4 +279,75 @@ void main() {
     expect(find.text('Vex Vaneth'), findsOneWidget);
     expect(find.text('40 / 60 HP'), findsOneWidget);
   });
+
+  group('mobile layout (Story 11.1/11.3)', () {
+    testWidgets('GM sees a FAB to add an NPC and collapsible sections', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final gmMember = CampaignMember(
+        id: 'member_1',
+        campaignId: 'camp_123',
+        userId: 'user_123',
+        activeCharacterId: 'char_789',
+        role: 'gm',
+        joinedAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(buildTestWidget(member: gmMember));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.byKey(const Key('session_add_npc_fab')), findsOneWidget);
+      // Section headings render as ExpansionTile titles, always visible
+      // regardless of expanded/collapsed state.
+      expect(find.text('Jogadores'), findsOneWidget);
+      expect(find.text('NPCs em Combate'), findsOneWidget);
+      expect(find.text('Log de Combate'), findsOneWidget);
+
+      // Pull-to-refresh doesn't crash the screen.
+      await tester.fling(
+        find.byType(RefreshIndicator),
+        const Offset(0, 300),
+        1000,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+    });
+  });
+
+  group('desktop layout (Story 11.2/11.4)', () {
+    testWidgets('shows the sessions sidebar', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final gmMember = CampaignMember(
+        id: 'member_1',
+        campaignId: 'camp_123',
+        userId: 'user_123',
+        activeCharacterId: 'char_789',
+        role: 'gm',
+        joinedAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(buildTestWidget(member: gmMember));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('SESSÕES'), findsOneWidget);
+      expect(find.text('Voltar à campanha'), findsOneWidget);
+      // FAB is mobile-only.
+      expect(find.byKey(const Key('session_add_npc_fab')), findsNothing);
+    });
+  });
 }

@@ -8,6 +8,7 @@ import 'package:ilithid/features/campaigns/presentation/providers/campaigns_prov
 import 'package:ilithid/features/characters/domain/character.dart';
 import 'package:ilithid/features/characters/presentation/providers/characters_provider.dart';
 import 'package:ilithid/features/combat/domain/combat_target.dart';
+import 'package:ilithid/features/combat/presentation/providers/logs_provider.dart';
 import 'package:ilithid/features/combat/presentation/providers/party_provider.dart';
 import 'package:ilithid/features/combat/presentation/providers/party_state.dart';
 import 'package:ilithid/features/combat/presentation/widgets/combat_action_dialog.dart';
@@ -22,6 +23,7 @@ import 'package:ilithid/features/npcs/presentation/providers/npc_templates_provi
 import 'package:ilithid/features/npcs/presentation/providers/npc_templates_state.dart';
 import 'package:ilithid/features/sessions/domain/session.dart';
 import 'package:ilithid/features/sessions/presentation/providers/sessions_provider.dart';
+import 'package:ilithid/features/sessions/presentation/providers/sessions_state.dart';
 import 'package:ilithid/shared/components/app_button.dart';
 import 'package:ilithid/shared/components/app_card.dart';
 import 'package:ilithid/shared/components/app_text_field.dart';
@@ -168,290 +170,607 @@ class _SessionDashboardScreenState
         ),
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
       ),
-      body: SingleChildScrollView(
+      floatingActionButton: ResponsiveBuilder(
+        builder: (context, deviceType) {
+          if (!isGm || deviceType != DeviceType.mobile) {
+            return const SizedBox.shrink();
+          }
+          return FloatingActionButton(
+            key: const Key('session_add_npc_fab'),
+            backgroundColor: AppColors.primary,
+            tooltip: 'Adicionar NPC',
+            onPressed: () => _showAddNpcDialog(context),
+            child: const Icon(Icons.add, color: Colors.white),
+          );
+        },
+      ),
+      body: ResponsiveBuilder(
+        builder: (context, deviceType) {
+          if (deviceType == DeviceType.mobile) {
+            return _buildMobileBody(
+              isGm: isGm,
+              showNpcHp: showNpcHp,
+              myCharacter: myCharacter,
+              companions: companions,
+              partyState: partyState,
+              npcInstancesState: npcInstancesState,
+            );
+          }
+          return _buildDesktopBody(
+            isGm: isGm,
+            showNpcHp: showNpcHp,
+            myCharacter: myCharacter,
+            companions: companions,
+            partyState: partyState,
+            npcInstancesState: npcInstancesState,
+            sessionsState: sessionsState,
+          );
+        },
+      ),
+    );
+  }
+
+  /// Pull-to-refresh fallback (Story 11.1) - re-fetches every provider this
+  /// screen shows, since Realtime already keeps them live but a manual
+  /// refresh is a reasonable "did I miss something" escape hatch.
+  Future<void> _refreshAll() async {
+    await Future.wait([
+      ref
+          .read(npcInstancesProvider(widget.sessionId).notifier)
+          .fetchNpcInstances(),
+      ref.read(partyProvider(_campaign!.id).notifier).fetchParty(),
+      ref.read(sessionsProvider(_campaign!.id).notifier).checkActiveSession(),
+      ref.read(logsProvider(widget.sessionId).notifier).fetchLogs(),
+      ref.read(charactersProvider.notifier).fetchCharacters(),
+    ]);
+  }
+
+  Widget _sessionInfoCard() {
+    return AppCard(
+      child: Row(
+        children: [
+          const Icon(
+            Icons.play_circle_fill_outlined,
+            color: AppColors.heal,
+            size: 40,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'SESSÃO ATIVA',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.heal,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _campaign!.name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionHeading(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: AppColors.textPrimary,
+      ),
+    );
+  }
+
+  Widget _myCharacterBody(Character character) {
+    return _MyCharacterCard(character: character, sessionId: widget.sessionId);
+  }
+
+  Widget _groupBody(List<PartyMember> companions) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: companions
+          .map(
+            (partyMember) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _CompanionCard(character: partyMember.character!),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Widget _playersBody(PartyState partyState) {
+    final withCharacter = partyState.members
+        .where((m) => m.character != null)
+        .toList();
+
+    if (partyState.status == PartyStatus.loading &&
+        partyState.members.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
+    }
+    if (withCharacter.isEmpty) {
+      return const AppCard(
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Session info card
-              AppCard(
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.play_circle_fill_outlined,
-                      color: AppColors.heal,
-                      size: 40,
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'SESSÃO ATIVA',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.heal,
-                              letterSpacing: 1.5,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _campaign!.name,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+          padding: EdgeInsets.symmetric(vertical: 16.0),
+          child: Text(
+            'Nenhum jogador com ficha ativa nesta campanha.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: withCharacter
+          .map(
+            (partyMember) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _PartyMemberCard(
+                partyMember: partyMember,
+                sessionId: widget.sessionId,
               ),
-              const SizedBox(height: 24),
+            ),
+          )
+          .toList(),
+    );
+  }
 
-              if (myCharacter != null) ...[
-                const Text(
-                  'Minha Ficha',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _MyCharacterCard(
-                  character: myCharacter,
-                  sessionId: widget.sessionId,
-                ),
-                const SizedBox(height: 24),
-              ],
-
-              if (!isGm && companions.isNotEmpty) ...[
-                const Text(
-                  'Grupo',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ...companions.map(
-                  (partyMember) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _CompanionCard(character: partyMember.character!),
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ],
-
-              if (isGm) ...[
-                const Text(
-                  'Jogadores',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (partyState.status == PartyStatus.loading &&
-                    partyState.members.isEmpty)
-                  const Center(
-                    child: CircularProgressIndicator(color: AppColors.primary),
-                  )
-                else if (partyState.members
-                    .where((m) => m.character != null)
-                    .isEmpty)
-                  const AppCard(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16.0),
-                      child: Text(
-                        'Nenhum jogador com ficha ativa nesta campanha.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                    ),
-                  )
-                else
-                  ...partyState.members
-                      .where((m) => m.character != null)
-                      .map(
-                        (partyMember) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _PartyMemberCard(
-                            partyMember: partyMember,
-                            sessionId: widget.sessionId,
-                          ),
-                        ),
-                      ),
-                const SizedBox(height: 24),
-              ],
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _npcsBody(
+    NpcInstancesState npcInstancesState,
+    bool isGm,
+    bool showNpcHp, {
+    int crossAxisCount = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (isGm) ...[
+          Align(
+            alignment: Alignment.centerRight,
+            child: AppButton(
+              onPressed: () => _showAddNpcDialog(context),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
+                  Icon(Icons.add, color: Colors.white, size: 18),
+                  SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'Adicionar NPC',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SwitchListTile(
+            key: const Key('toggle_show_npc_hp'),
+            contentPadding: EdgeInsets.zero,
+            title: const Text(
+              'Mostrar HP exato dos NPCs para os jogadores',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            value: showNpcHp,
+            activeThumbColor: AppColors.primary,
+            onChanged: (value) => ref
+                .read(sessionsProvider(_campaign!.id).notifier)
+                .setShowNpcHp(widget.sessionId, value),
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (npcInstancesState.status == NpcInstancesStatus.loading &&
+            npcInstancesState.npcInstances.isEmpty)
+          const Center(
+            child: CircularProgressIndicator(color: AppColors.primary),
+          )
+        else if (npcInstancesState.status == NpcInstancesStatus.error)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.damage.withAlpha(26),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.damage.withAlpha(76)),
+            ),
+            child: Text(
+              npcInstancesState.errorMessage!,
+              style: const TextStyle(color: AppColors.damage),
+            ),
+          )
+        else if (npcInstancesState.npcInstances.isEmpty)
+          AppCard(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32.0),
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.face_retouching_natural_outlined,
+                    size: 64,
+                    color: AppColors.textMuted,
+                  ),
+                  const SizedBox(height: 16),
                   const Text(
-                    'NPCs em Combate',
+                    'Nenhum NPC em combate',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  if (isGm)
-                    AppButton(
-                      onPressed: () => _showAddNpcDialog(context),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.add, color: Colors.white, size: 18),
-                          SizedBox(width: 6),
-                          Text('Adicionar NPC'),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-              if (isGm)
-                SwitchListTile(
-                  key: const Key('toggle_show_npc_hp'),
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text(
-                    'Mostrar HP exato dos NPCs para os jogadores',
-                    style: TextStyle(
+                  const SizedBox(height: 8),
+                  Text(
+                    isGm
+                        ? 'Toque em "Adicionar NPC" para trazer monstros ou aliados para o combate.'
+                        : 'Aguarde o Mestre instanciar NPCs nesta sessão.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
                       fontSize: 13,
                       color: AppColors.textSecondary,
                     ),
                   ),
-                  value: showNpcHp,
-                  activeThumbColor: AppColors.primary,
-                  onChanged: (value) => ref
-                      .read(sessionsProvider(_campaign!.id).notifier)
-                      .setShowNpcHp(widget.sessionId, value),
-                ),
-              const SizedBox(height: 16),
-
-              if (npcInstancesState.status == NpcInstancesStatus.loading &&
-                  npcInstancesState.npcInstances.isEmpty)
-                const Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
-                )
-              else if (npcInstancesState.status == NpcInstancesStatus.error)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.damage.withAlpha(26),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.damage.withAlpha(76)),
-                  ),
-                  child: Text(
-                    npcInstancesState.errorMessage!,
-                    style: const TextStyle(color: AppColors.damage),
-                  ),
-                ),
-              const SizedBox(height: 16),
-
-              if (npcInstancesState.npcInstances.isEmpty &&
-                  npcInstancesState.status != NpcInstancesStatus.loading)
-                AppCard(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 32.0),
-                    child: Column(
-                      children: [
-                        const Icon(
-                          Icons.face_retouching_natural_outlined,
-                          size: 64,
-                          color: AppColors.textMuted,
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Nenhum NPC em combate',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          isGm
-                              ? 'Toque em "Adicionar NPC" para trazer monstros ou aliados para o combate.'
-                              : 'Aguarde o Mestre instanciar NPCs nesta sessão.',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                ResponsiveBuilder(
-                  builder: (context, deviceType) {
-                    final isMobile = deviceType == DeviceType.mobile;
-                    final crossAxisCount = isMobile ? 1 : 2;
-
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: crossAxisCount,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                        mainAxisExtent: 96,
-                      ),
-                      itemCount: npcInstancesState.npcInstances.length,
-                      itemBuilder: (context, index) {
-                        final instance = npcInstancesState.npcInstances[index];
-                        return _NpcInstanceCard(
-                          instance: instance,
-                          isGm: isGm,
-                          showNpcHp: showNpcHp,
-                          sessionId: widget.sessionId,
-                        );
-                      },
-                    );
-                  },
-                ),
-              const SizedBox(height: 24),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Log de Combate',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  if (isGm)
-                    TextButton.icon(
-                      key: const Key('add_custom_log_button'),
-                      onPressed: () => showDialog<void>(
-                        context: context,
-                        builder: (dialogContext) =>
-                            CustomLogDialog(sessionId: widget.sessionId),
-                      ),
-                      icon: const Icon(Icons.edit_note, size: 18),
-                      label: const Text('Adicionar Nota'),
-                    ),
                 ],
               ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 320,
-                child: LogFeed(sessionId: widget.sessionId),
+            ),
+          )
+        else
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              mainAxisExtent: 96,
+            ),
+            itemCount: npcInstancesState.npcInstances.length,
+            itemBuilder: (context, index) {
+              final instance = npcInstancesState.npcInstances[index];
+              return _NpcInstanceCard(
+                instance: instance,
+                isGm: isGm,
+                showNpcHp: showNpcHp,
+                sessionId: widget.sessionId,
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _logBody(bool isGm) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (isGm)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              key: const Key('add_custom_log_button'),
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (dialogContext) =>
+                    CustomLogDialog(sessionId: widget.sessionId),
               ),
+              icon: const Icon(Icons.edit_note, size: 18),
+              label: const Text('Adicionar Nota'),
+            ),
+          ),
+        SizedBox(height: 320, child: LogFeed(sessionId: widget.sessionId)),
+      ],
+    );
+  }
+
+  /// Mobile GM/Player dashboard (Stories 11.1/11.3): a linear column of
+  /// collapsible sections, pull-to-refresh as a fallback to Realtime, and
+  /// a FAB (declared in [build]) for the GM to add an NPC.
+  Widget _buildMobileBody({
+    required bool isGm,
+    required bool showNpcHp,
+    required Character? myCharacter,
+    required List<PartyMember> companions,
+    required PartyState partyState,
+    required NpcInstancesState npcInstancesState,
+  }) {
+    return RefreshIndicator(
+      color: AppColors.primary,
+      backgroundColor: AppColors.surface,
+      onRefresh: _refreshAll,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _sessionInfoCard(),
+            const SizedBox(height: 24),
+            if (myCharacter != null) ...[
+              _sectionHeading('Minha Ficha'),
+              const SizedBox(height: 16),
+              _myCharacterBody(myCharacter),
+              const SizedBox(height: 24),
             ],
+            if (!isGm && companions.isNotEmpty)
+              _CollapsibleSection(
+                title: 'Grupo',
+                child: _groupBody(companions),
+              ),
+            if (isGm)
+              _CollapsibleSection(
+                title: 'Jogadores',
+                child: _playersBody(partyState),
+              ),
+            _CollapsibleSection(
+              title: 'NPCs em Combate',
+              child: _npcsBody(npcInstancesState, isGm, showNpcHp),
+            ),
+            _CollapsibleSection(
+              title: 'Log de Combate',
+              initiallyExpanded: false,
+              child: _logBody(isGm),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Desktop GM/Player dashboard (Stories 11.2/11.4): a sessions sidebar
+  /// plus a 3-column layout (Jogadores/Minha Ficha+Grupo | NPCs | Log),
+  /// each column independently scrollable.
+  Widget _buildDesktopBody({
+    required bool isGm,
+    required bool showNpcHp,
+    required Character? myCharacter,
+    required List<PartyMember> companions,
+    required PartyState partyState,
+    required NpcInstancesState npcInstancesState,
+    required SessionsState sessionsState,
+  }) {
+    Widget column(String title, Widget body, {Widget? headingTrailing}) {
+      return Expanded(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (headingTrailing == null)
+                _sectionHeading(title)
+              else
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [_sectionHeading(title), headingTrailing],
+                ),
+              const SizedBox(height: 16),
+              body,
+            ],
+          ),
+        ),
+      );
+    }
+
+    final leftColumn = isGm
+        ? column('Jogadores', _playersBody(partyState))
+        : column(
+            'Minha Ficha',
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (myCharacter != null) _myCharacterBody(myCharacter),
+                if (companions.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  _sectionHeading('Grupo'),
+                  const SizedBox(height: 16),
+                  _groupBody(companions),
+                ],
+              ],
+            ),
+          );
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SessionsSidebar(
+          sessions: sessionsState.sessions,
+          currentSessionId: widget.sessionId,
+          hexId: widget.hexId,
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _sessionInfoCard(),
+                const SizedBox(height: 24),
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      leftColumn,
+                      column(
+                        'NPCs em Combate',
+                        _npcsBody(
+                          npcInstancesState,
+                          isGm,
+                          showNpcHp,
+                          crossAxisCount: 2,
+                        ),
+                      ),
+                      column('Log de Combate', _logBody(isGm)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Sessions sidebar for the desktop layout (Story 11.2): lists the
+/// campaign's sessions so the GM can jump between them without going back
+/// to the campaign dashboard.
+class _SessionsSidebar extends StatelessWidget {
+  final List<Session> sessions;
+  final String currentSessionId;
+  final String hexId;
+
+  const _SessionsSidebar({
+    required this.sessions,
+    required this.currentSessionId,
+    required this.hexId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 220,
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      decoration: const BoxDecoration(
+        border: Border(right: BorderSide(color: AppColors.border)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              'SESSÕES',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textMuted,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: ListView.builder(
+              itemCount: sessions.length,
+              itemBuilder: (context, index) {
+                final session = sessions[index];
+                final isCurrent = session.id == currentSessionId;
+                return Tooltip(
+                  message: session.status == 'active'
+                      ? 'Sessão ativa'
+                      : 'Sessão encerrada',
+                  child: ListTile(
+                    dense: true,
+                    selected: isCurrent,
+                    selectedTileColor: AppColors.primary.withAlpha(26),
+                    leading: Icon(
+                      session.status == 'active'
+                          ? Icons.play_circle_fill_outlined
+                          : Icons.check_circle_outline,
+                      size: 18,
+                      color: session.status == 'active'
+                          ? AppColors.heal
+                          : AppColors.textMuted,
+                    ),
+                    title: Text(
+                      session.startedAt.toLocal().toString().split('.').first,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onTap: session.status == 'active' && !isCurrent
+                        ? () => context.go(
+                            '/campaigns/$hexId/session/${session.id}',
+                          )
+                        : null,
+                  ),
+                );
+              },
+            ),
+          ),
+          const Divider(color: AppColors.border),
+          ListTile(
+            dense: true,
+            leading: const Icon(
+              Icons.arrow_back,
+              size: 18,
+              color: AppColors.textSecondary,
+            ),
+            title: const Text(
+              'Voltar à campanha',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            onTap: () => context.go('/campaigns/$hexId'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Collapsible section wrapper for the mobile layout (Story 11.1).
+class _CollapsibleSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+  final bool initiallyExpanded;
+
+  const _CollapsibleSection({
+    required this.title,
+    required this.child,
+    this.initiallyExpanded = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Material(
+          // ExpansionTile's ListTile paints ink/background on the nearest
+          // Material ancestor; without this, they'd render invisibly
+          // behind the surrounding decorated Container's own background.
+          color: Colors.transparent,
+          child: Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              key: PageStorageKey<String>(title),
+              initiallyExpanded: initiallyExpanded,
+              title: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              children: [child],
+            ),
           ),
         ),
       ),
@@ -618,18 +937,16 @@ class _MyCharacterCard extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
               ),
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (dialogContext) => CombatActionDialog(
-                  sessionId: sessionId,
-                  target: CombatTarget(
-                    kind: CombatTargetKind.character,
-                    id: character.id,
-                    name: character.name,
-                    hpCurrent: character.hpCurrent,
-                    hpMax: character.hpMax,
-                    hpTemp: character.hpTemp,
-                  ),
+              onPressed: () => showCombatAction(
+                context,
+                sessionId: sessionId,
+                target: CombatTarget(
+                  kind: CombatTargetKind.character,
+                  id: character.id,
+                  name: character.name,
+                  hpCurrent: character.hpCurrent,
+                  hpMax: character.hpMax,
+                  hpTemp: character.hpTemp,
                 ),
               ),
               icon: const Icon(Icons.flash_on, size: 18),
@@ -703,18 +1020,16 @@ class _PartyMemberCard extends StatelessWidget {
               size: 22,
             ),
             tooltip: 'Ações de combate',
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (dialogContext) => CombatActionDialog(
-                sessionId: sessionId,
-                target: CombatTarget(
-                  kind: CombatTargetKind.character,
-                  id: character.id,
-                  name: character.name,
-                  hpCurrent: character.hpCurrent,
-                  hpMax: character.hpMax,
-                  hpTemp: character.hpTemp,
-                ),
+            onPressed: () => showCombatAction(
+              context,
+              sessionId: sessionId,
+              target: CombatTarget(
+                kind: CombatTargetKind.character,
+                id: character.id,
+                name: character.name,
+                hpCurrent: character.hpCurrent,
+                hpMax: character.hpMax,
+                hpTemp: character.hpTemp,
               ),
             ),
           ),
@@ -826,18 +1141,16 @@ class _NpcInstanceCard extends ConsumerWidget {
                 size: 22,
               ),
               tooltip: 'Ações de combate',
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (dialogContext) => CombatActionDialog(
-                  sessionId: sessionId,
-                  target: CombatTarget(
-                    kind: CombatTargetKind.npcInstance,
-                    id: instance.id,
-                    name: instance.name,
-                    hpCurrent: instance.hpCurrent,
-                    hpMax: instance.hpMax,
-                    hpTemp: instance.hpTemp,
-                  ),
+              onPressed: () => showCombatAction(
+                context,
+                sessionId: sessionId,
+                target: CombatTarget(
+                  kind: CombatTargetKind.npcInstance,
+                  id: instance.id,
+                  name: instance.name,
+                  hpCurrent: instance.hpCurrent,
+                  hpMax: instance.hpMax,
+                  hpTemp: instance.hpTemp,
                 ),
               ),
             ),

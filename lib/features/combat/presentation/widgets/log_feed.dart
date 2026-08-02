@@ -109,7 +109,16 @@ class _LogFeedState extends ConsumerState<LogFeed> {
     }
 
     return ListView.separated(
-      key: const Key('log_feed_list'),
+      // A distinct PageStorageKey (not just a plain Key) is required here:
+      // this list can live inside an ExpansionTile (Story 11.1's
+      // collapsible sections), which stores its own expanded/collapsed
+      // bool via PageStorage under the nearest PageStorageKey ancestor.
+      // Without an explicit key of its own, this ListView's scroll
+      // position restoration resolves to that same ancestor identifier,
+      // and reads back the ExpansionTile's bool where a double? is
+      // expected - crashing with "type 'bool' is not a subtype of type
+      // 'double?'".
+      key: PageStorageKey<String>('log_feed_list_${widget.sessionId}'),
       controller: _scrollController,
       itemCount: logsState.logs.length + (logsState.isLoadingMore ? 1 : 0),
       separatorBuilder: (context, index) => const SizedBox(height: 8),
