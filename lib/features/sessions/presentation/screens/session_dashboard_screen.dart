@@ -544,9 +544,14 @@ class _SessionDashboardScreenState
     required NpcInstancesState npcInstancesState,
     required SessionsState sessionsState,
   }) {
+    // Note: these columns intentionally do NOT get their own
+    // SingleChildScrollView - the whole page already scrolls via the
+    // SingleChildScrollView below, and nesting an unbounded-height
+    // scrollable inside another (previously also wrapped in
+    // IntrinsicHeight) collapsed every column to zero height on web.
     Widget column(String title, Widget body, {Widget? headingTrailing}) {
       return Expanded(
-        child: SingleChildScrollView(
+        child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -600,23 +605,21 @@ class _SessionDashboardScreenState
               children: [
                 _sessionInfoCard(),
                 const SizedBox(height: 24),
-                IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      leftColumn,
-                      column(
-                        'NPCs em Combate',
-                        _npcsBody(
-                          npcInstancesState,
-                          isGm,
-                          showNpcHp,
-                          crossAxisCount: 2,
-                        ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    leftColumn,
+                    column(
+                      'NPCs em Combate',
+                      _npcsBody(
+                        npcInstancesState,
+                        isGm,
+                        showNpcHp,
+                        crossAxisCount: 2,
                       ),
-                      column('Log de Combate', _logBody(isGm)),
-                    ],
-                  ),
+                    ),
+                    column('Log de Combate', _logBody(isGm)),
+                  ],
                 ),
               ],
             ),

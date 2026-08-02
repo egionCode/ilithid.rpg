@@ -344,10 +344,28 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
+      // Regression guard: catches layout errors (e.g. IntrinsicHeight +
+      // nested SingleChildScrollView) that Flutter swallows into a
+      // per-subtree error widget instead of failing the pump outright -
+      // find.text() alone wouldn't detect those, since the Text widgets
+      // are still built even when their RenderObject fails to lay out.
+      expect(tester.takeException(), isNull);
+
       expect(find.text('SESSÕES'), findsOneWidget);
       expect(find.text('Voltar à campanha'), findsOneWidget);
       // FAB is mobile-only.
       expect(find.byKey(const Key('session_add_npc_fab')), findsNothing);
+
+      // Regression guard: the 3-column layout previously collapsed to zero
+      // height on web (IntrinsicHeight + nested SingleChildScrollView),
+      // hiding every column's content behind the sidebar/session card.
+      expect(find.text('Jogadores'), findsOneWidget);
+      expect(find.text('NPCs em Combate'), findsOneWidget);
+      expect(find.text('Log de Combate'), findsOneWidget);
+      expect(
+        find.text('Nenhum jogador com ficha ativa nesta campanha.'),
+        findsOneWidget,
+      );
     });
   });
 }
