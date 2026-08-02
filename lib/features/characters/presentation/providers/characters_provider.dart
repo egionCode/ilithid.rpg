@@ -5,6 +5,7 @@ import 'package:ilithid/features/auth/presentation/providers/auth_state.dart';
 import 'package:ilithid/features/characters/domain/character.dart';
 import 'package:ilithid/features/characters/presentation/providers/characters_state.dart';
 import 'package:ilithid/shared/services/appwrite_service.dart';
+import 'package:ilithid/shared/services/foundry_parser.dart';
 import 'package:ilithid/shared/services/realtime_service.dart';
 
 final charactersProvider =
@@ -131,6 +132,58 @@ class CharactersNotifier extends Notifier<CharactersState> {
       final newCharacter = Character.fromRow(row);
 
       // Update state with new character added to list
+      final updatedList = List<Character>.from(state.characters)
+        ..add(newCharacter);
+      state = CharactersState.success(updatedList);
+
+      return newCharacter;
+    } catch (e) {
+      state = CharactersState.error(
+        e.toString(),
+        currentCharacters: state.characters,
+      );
+      return null;
+    }
+  }
+
+  /// Creates a character from a parsed Foundry VTT export (Story 10.2).
+  Future<Character?> createFromFoundry({
+    required FoundryParseResult parsed,
+    required String rawJson,
+  }) async {
+    final authState = ref.read(authProvider);
+    final user = authState.user;
+    if (user == null) {
+      state = CharactersState.error(
+        'User must be logged in to create characters.',
+      );
+      return null;
+    }
+
+    state = CharactersState.loading(currentCharacters: state.characters);
+
+    try {
+      final characterId = ID.unique();
+      final characterData = {
+        'userId': user.$id,
+        'name': parsed.name,
+        'hpCurrent': parsed.hpCurrent,
+        'hpMax': parsed.hpMax,
+        'hpTemp': 0,
+        'ac': parsed.ac,
+        'sourceSystem': 'dnd5e',
+        'rawJson': rawJson,
+        'createdAt': DateTime.now().toIso8601String(),
+      };
+
+      final row = await _tablesDb.createRow(
+        databaseId: appwriteDatabaseId,
+        tableId: appwriteCharactersTableId,
+        rowId: characterId,
+        data: characterData,
+      );
+
+      final newCharacter = Character.fromRow(row);
       final updatedList = List<Character>.from(state.characters)
         ..add(newCharacter);
       state = CharactersState.success(updatedList);
