@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ilithid/shared/components/foundry_import_dialog.dart';
@@ -11,15 +10,9 @@ Uint8List _jsonBytes(Map<String, dynamic> data) {
   return Uint8List.fromList(utf8.encode(jsonEncode(data)));
 }
 
-FilePickerResult _resultWithBytes(Uint8List bytes, {String name = 'a.json'}) {
-  return FilePickerResult([
-    PlatformFile(name: name, size: bytes.length, bytes: bytes),
-  ]);
-}
-
 void main() {
   Widget buildTestWidget({
-    required Future<FilePickerResult?> Function() pickFile,
+    required Future<Uint8List?> Function() pickFile,
     required Future<bool> Function(FoundryParseResult parsed, String rawJson)
     onConfirm,
   }) {
@@ -61,7 +54,7 @@ void main() {
 
     await tester.pumpWidget(
       buildTestWidget(
-        pickFile: () async => _resultWithBytes(bytes),
+        pickFile: () async => bytes,
         onConfirm: (_, _) async => true,
       ),
     );
@@ -82,7 +75,7 @@ void main() {
 
     await tester.pumpWidget(
       buildTestWidget(
-        pickFile: () async => _resultWithBytes(bytes),
+        pickFile: () async => bytes,
         onConfirm: (_, _) async => true,
       ),
     );
@@ -114,7 +107,7 @@ void main() {
     FoundryParseResult? received;
     await tester.pumpWidget(
       buildTestWidget(
-        pickFile: () async => _resultWithBytes(bytes),
+        pickFile: () async => bytes,
         onConfirm: (parsed, rawJson) async {
           received = parsed;
           return true;

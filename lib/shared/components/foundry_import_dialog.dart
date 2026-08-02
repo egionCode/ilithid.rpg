@@ -1,6 +1,7 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:ilithid/shared/components/app_button.dart';
 import 'package:ilithid/shared/services/foundry_parser.dart';
@@ -15,10 +16,11 @@ class FoundryImportDialog extends StatefulWidget {
   final Future<bool> Function(FoundryParseResult parsed, String rawJson)
   onConfirm;
 
-  /// Overrides the real file picker in tests, since `FilePicker.pickFiles`
-  /// talks to a platform channel that isn't available under
-  /// `flutter_test`.
-  final Future<FilePickerResult?> Function()? pickFile;
+  /// Overrides the real file picker in tests, since file_selector's
+  /// `openFile` talks to a platform channel that isn't available under
+  /// `flutter_test`. Returns the picked file's raw bytes, or null if the
+  /// user cancelled.
+  final Future<Uint8List?> Function()? pickFile;
 
   const FoundryImportDialog({
     super.key,
@@ -37,25 +39,19 @@ class _FoundryImportDialogState extends State<FoundryImportDialog> {
   String? _rawJson;
   bool _isSubmitting = false;
 
+  Future<Uint8List?> _defaultPickFile() async {
+    const jsonType = XTypeGroup(label: 'json', extensions: ['json']);
+    final file = await openFile(acceptedTypeGroups: const [jsonType]);
+    if (file == null) return null;
+    return file.readAsBytes();
+  }
+
   Future<void> _pickFile() async {
     setState(() => _error = null);
 
     try {
-      final pick =
-          widget.pickFile ??
-          () => FilePicker.pickFiles(
-            type: FileType.custom,
-            allowedExtensions: ['json'],
-            withData: true,
-          );
-      final result = await pick();
-      if (result == null || result.files.isEmpty) return;
-
-      final bytes = result.files.single.bytes;
-      if (bytes == null) {
-        setState(() => _error = 'Não foi possível ler o arquivo selecionado.');
-        return;
-      }
+      final bytes = await (widget.pickFile ?? _defaultPickFile)();
+      if (bytes == null) return;
 
       final rawJson = utf8.decode(bytes);
       final parsed = FoundryParser.parse(rawJson);
