@@ -6,6 +6,8 @@ import 'package:ilithid/features/auth/presentation/providers/auth_provider.dart'
 import 'package:ilithid/features/auth/presentation/providers/auth_state.dart';
 import 'package:ilithid/features/characters/presentation/providers/characters_provider.dart';
 import 'package:ilithid/features/characters/presentation/providers/characters_state.dart';
+import 'package:ilithid/shared/services/appwrite_service.dart';
+import 'package:ilithid/shared/services/foundry_parser.dart';
 import 'package:ilithid/shared/services/realtime_service.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -38,6 +40,8 @@ void main() {
     required String name,
     required int hpMax,
     required int ac,
+    String sourceSystem = 'manual',
+    String? rawJson,
   }) {
     return models.Row.fromMap({
       '\$id': id,
@@ -53,7 +57,8 @@ void main() {
       'hpMax': hpMax,
       'hpTemp': 0,
       'ac': ac,
-      'sourceSystem': 'manual',
+      'sourceSystem': sourceSystem,
+      'rawJson': rawJson,
       'createdAt': DateTime.now().toIso8601String(),
     });
   }
@@ -218,6 +223,77 @@ void main() {
         final state = container.read(charactersProvider);
         expect(state.status, equals(CharactersStatus.success));
         expect(state.characters.any((c) => c.id == 'char_new'), isTrue);
+      },
+    );
+
+    test(
+      'createFromFoundry should create a character with sourceSystem dnd5e and rawJson',
+      () async {
+        const rawJson = '{"name":"Aragorn"}';
+        final foundryCharRow = buildCharacterRow(
+          id: 'char_foundry',
+          userId: 'user_123',
+          name: 'Aragorn',
+          hpMax: 50,
+          ac: 16,
+          sourceSystem: 'dnd5e',
+          rawJson: rawJson,
+        );
+
+        when(
+          () => mockTablesDb.createRow(
+            databaseId: any(named: 'databaseId'),
+            tableId: any(named: 'tableId'),
+            rowId: any(named: 'rowId'),
+            data: any(named: 'data'),
+          ),
+        ).thenAnswer((_) async => foundryCharRow);
+
+        container = ProviderContainer(
+          overrides: [
+            appwriteTablesDbProvider.overrideWithValue(mockTablesDb),
+            realtimeClientProvider.overrideWithValue(mockRealtime),
+            authProvider.overrideWith(
+              () => FakeAuthNotifier(authenticatedState),
+            ),
+          ],
+        );
+
+        container.read(charactersProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        const parsed = FoundryParseResult(
+          entityType: FoundryEntityType.pc,
+          name: 'Aragorn',
+          hpCurrent: 45,
+          hpMax: 50,
+          ac: 16,
+          unrecognizedFields: [],
+        );
+
+        final character = await container
+            .read(charactersProvider.notifier)
+            .createFromFoundry(parsed: parsed, rawJson: rawJson);
+
+        expect(character, isNotNull);
+        expect(character!.name, equals('Aragorn'));
+        expect(character.sourceSystem, equals('dnd5e'));
+        expect(character.rawJson, equals(rawJson));
+
+        final captured = verify(
+          () => mockTablesDb.createRow(
+            databaseId: any(named: 'databaseId'),
+            tableId: appwriteCharactersTableId,
+            rowId: any(named: 'rowId'),
+            data: captureAny(named: 'data'),
+          ),
+        ).captured;
+
+        final data = Map<String, dynamic>.from(captured.single as Map);
+        expect(data['sourceSystem'], 'dnd5e');
+        expect(data['rawJson'], rawJson);
+        expect(data['hpCurrent'], 45);
+        expect(data['hpMax'], 50);
       },
     );
 

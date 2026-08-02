@@ -6,10 +6,28 @@ import 'package:ilithid/features/characters/presentation/providers/characters_pr
 import 'package:ilithid/features/characters/presentation/providers/characters_state.dart';
 import 'package:ilithid/shared/components/app_button.dart';
 import 'package:ilithid/shared/components/app_card.dart';
+import 'package:ilithid/shared/components/foundry_import_dialog.dart';
 import 'package:ilithid/shared/theme/app_colors.dart';
 
 class CharactersListScreen extends ConsumerWidget {
   const CharactersListScreen({super.key});
+
+  void _showImportDialog(BuildContext context, WidgetRef ref) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return FoundryImportDialog(
+          title: 'Importar Ficha do Foundry',
+          onConfirm: (parsed, rawJson) async {
+            final character = await ref
+                .read(charactersProvider.notifier)
+                .createFromFoundry(parsed: parsed, rawJson: rawJson);
+            return character != null;
+          },
+        );
+      },
+    );
+  }
 
   void _confirmDelete(
     BuildContext context,
@@ -74,6 +92,14 @@ class CharactersListScreen extends ConsumerWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/'),
         ),
+        actions: [
+          IconButton(
+            key: const Key('import_foundry_character_button'),
+            icon: const Icon(Icons.upload_file),
+            tooltip: 'Importar do Foundry',
+            onPressed: () => _showImportDialog(context, ref),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         key: const Key('add_character_fab'),
