@@ -1,9 +1,6 @@
-.git
-.dart_tool
-build
-.env
-android/app/*.keystore
-ios
-macos
-windows
-linux
+# Only build/web is needed in the Docker build context (see Dockerfile);
+# everything else is irrelevant to the nginx image and would just slow
+# down the `docker build` context upload.
+*
+!build/web
+!build/web/**
