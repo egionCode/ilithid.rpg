@@ -1,0 +1,101 @@
+name: CD
+
+# Runs only after CI passes on main - avoids deploying code that failed
+# lint/test/security scan. workflow_run (not push) is what lets this job
+# wait on that result instead of duplicating the CI steps here.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  build-and-push-web:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: |
+            APPWRITE_ENDPOINT=${{ vars.APPWRITE_ENDPOINT }}
+            APPWRITE_PROJECT_ID=${{ vars.APPWRITE_PROJECT_ID }}
+          tags: |
+            ghcr.io/egioncode/ilithid-web:latest
+            ghcr.io/egioncode/ilithid-web:${{ github.event.workflow_run.head_sha }}
+
+  deploy-web:
+    needs: build-and-push-web
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH deploy (pull new image, recreate container)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            cd /home/deploy/ilithid
+            docker compose pull
+            docker compose up -d
+            docker logout ghcr.io
+
+  build-android-apk:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Decode release keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
+
+      - name: Build signed release APK
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          flutter pub get
+          flutter build apk --release \
+            --dart-define=APPWRITE_ENDPOINT=${{ vars.APPWRITE_ENDPOINT }} \
+            --dart-define=APPWRITE_PROJECT_ID=${{ vars.APPWRITE_PROJECT_ID }}
+
+      - name: Publish GitHub Release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Build ${{ github.run_number }}
+          target_commitish: ${{ github.event.workflow_run.head_sha }}
+          files: build/app/outputs/flutter-apk/app-release.apk
