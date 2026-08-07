@@ -1,0 +1,16 @@
+# Reference copy - the source of truth lives on the server at
+# /home/deploy/ilithid/docker-compose.yml (see .agents runbook / CD workflow).
+# The CD workflow only runs `docker compose pull && up -d` here; it never
+# writes this file, so edits to ports/network/etc must be made on the
+# server directly.
+services:
+  ilithid:
+    image: ghcr.io/egioncode/ilithid-web:latest
+    container_name: ilithid
+    restart: unless-stopped
+    networks:
+      - web-network
+
+networks:
+  web-network:
+    external: true
