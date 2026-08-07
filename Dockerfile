@@ -1,23 +1,11 @@
-# Multi-stage build: compiles Flutter web, then serves the static output
-# with nginx. Build args carry the Appwrite endpoint/project id (public
-# client config, not secrets - the real access control lives in Appwrite's
-# own permission model, not in hiding these values).
-FROM ghcr.io/cirruslabs/flutter:stable AS build
-
-WORKDIR /app
-COPY . .
-
-ARG APPWRITE_ENDPOINT
-ARG APPWRITE_PROJECT_ID
-
-RUN flutter pub get && \
-    flutter build web --release \
-      --dart-define=APPWRITE_ENDPOINT=${APPWRITE_ENDPOINT} \
-      --dart-define=APPWRITE_PROJECT_ID=${APPWRITE_PROJECT_ID}
-
+# Packages an already-built `flutter build web` output (see cd.yml, which
+# runs the build on the Actions runner using the same Flutter toolchain as
+# CI) into a static nginx image. Not a multi-stage Flutter build: third-party
+# Flutter Docker images lag behind the Dart SDK version this project pins
+# in pubspec.yaml, causing "version solving failed" during `pub get`.
 FROM nginx:alpine
 
-COPY --from=build /app/build/web /usr/share/nginx/html
+COPY build/web /usr/share/nginx/html
 
 # Flutter web uses client-side routing (GoRouter); unknown paths must fall
 # back to index.html instead of nginx's default 404.
