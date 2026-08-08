@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Debug builds get this injected automatically by the Flutter tool;
+         release builds (the ones the CD workflow ships) do not, so it must
+         be declared explicitly or the app can't even resolve DNS. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="ilithid"
         android:name="${applicationName}"
