@@ -29,6 +29,7 @@ import 'package:ilithid/shared/components/app_card.dart';
 import 'package:ilithid/shared/components/app_text_field.dart';
 import 'package:ilithid/shared/components/hp_bar.dart';
 import 'package:ilithid/shared/components/responsive_builder.dart';
+import 'package:ilithid/shared/routing/navigation.dart';
 import 'package:ilithid/shared/theme/app_colors.dart';
 
 class SessionDashboardScreen extends ConsumerStatefulWidget {
@@ -108,20 +109,26 @@ class _SessionDashboardScreenState
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
+      return AppBackHandler(
+        fallbackLocation: '/campaigns/${widget.hexId}',
+        child: const Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(color: AppColors.primary),
+          ),
         ),
       );
     }
 
     if (_error != null || _campaign == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Erro')),
-        body: Center(
-          child: Text(
-            _error ?? 'Erro desconhecido',
-            style: const TextStyle(color: AppColors.damage),
+      return AppBackHandler(
+        fallbackLocation: '/campaigns/${widget.hexId}',
+        child: Scaffold(
+          appBar: AppBar(title: const Text('Erro')),
+          body: Center(
+            child: Text(
+              _error ?? 'Erro desconhecido',
+              style: const TextStyle(color: AppColors.damage),
+            ),
           ),
         ),
       );
@@ -151,61 +158,64 @@ class _SessionDashboardScreenState
         .where((m) => m.character != null && m.character!.id != myCharacter?.id)
         .toList();
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.surface,
-        elevation: 0,
-        leading: IconButton(
-          key: const Key('session_back_button'),
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/campaigns/${widget.hexId}'),
-        ),
-        title: Text(
-          'Sessão — ${_campaign!.name}',
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.bold,
+    return AppBackHandler(
+      fallbackLocation: '/campaigns/${widget.hexId}',
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.surface,
+          elevation: 0,
+          leading: IconButton(
+            key: const Key('session_back_button'),
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.backOr('/campaigns/${widget.hexId}'),
           ),
+          title: Text(
+            'Sessão — ${_campaign!.name}',
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          iconTheme: const IconThemeData(color: AppColors.textPrimary),
         ),
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
-      ),
-      floatingActionButton: ResponsiveBuilder(
-        builder: (context, deviceType) {
-          if (!isGm || deviceType != DeviceType.mobile) {
-            return const SizedBox.shrink();
-          }
-          return FloatingActionButton(
-            key: const Key('session_add_npc_fab'),
-            backgroundColor: AppColors.primary,
-            tooltip: 'Adicionar NPC',
-            onPressed: () => _showAddNpcDialog(context),
-            child: const Icon(Icons.add, color: Colors.white),
-          );
-        },
-      ),
-      body: ResponsiveBuilder(
-        builder: (context, deviceType) {
-          if (deviceType == DeviceType.mobile) {
-            return _buildMobileBody(
+        floatingActionButton: ResponsiveBuilder(
+          builder: (context, deviceType) {
+            if (!isGm || deviceType != DeviceType.mobile) {
+              return const SizedBox.shrink();
+            }
+            return FloatingActionButton(
+              key: const Key('session_add_npc_fab'),
+              backgroundColor: AppColors.primary,
+              tooltip: 'Adicionar NPC',
+              onPressed: () => _showAddNpcDialog(context),
+              child: const Icon(Icons.add, color: Colors.white),
+            );
+          },
+        ),
+        body: ResponsiveBuilder(
+          builder: (context, deviceType) {
+            if (deviceType == DeviceType.mobile) {
+              return _buildMobileBody(
+                isGm: isGm,
+                showNpcHp: showNpcHp,
+                myCharacter: myCharacter,
+                companions: companions,
+                partyState: partyState,
+                npcInstancesState: npcInstancesState,
+              );
+            }
+            return _buildDesktopBody(
               isGm: isGm,
               showNpcHp: showNpcHp,
               myCharacter: myCharacter,
               companions: companions,
               partyState: partyState,
               npcInstancesState: npcInstancesState,
+              sessionsState: sessionsState,
             );
-          }
-          return _buildDesktopBody(
-            isGm: isGm,
-            showNpcHp: showNpcHp,
-            myCharacter: myCharacter,
-            companions: companions,
-            partyState: partyState,
-            npcInstancesState: npcInstancesState,
-            sessionsState: sessionsState,
-          );
-        },
+          },
+        ),
       ),
     );
   }
@@ -701,7 +711,7 @@ class _SessionsSidebar extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     onTap: session.status == 'active' && !isCurrent
-                        ? () => context.go(
+                        ? () => context.pushReplacement(
                             '/campaigns/$hexId/session/${session.id}',
                           )
                         : null,
@@ -722,7 +732,7 @@ class _SessionsSidebar extends StatelessWidget {
               'Voltar à campanha',
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
-            onTap: () => context.go('/campaigns/$hexId'),
+            onTap: () => context.backOr('/campaigns/$hexId'),
           ),
         ],
       ),

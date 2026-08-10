@@ -13,6 +13,7 @@ import 'package:ilithid/features/npcs/presentation/providers/npc_templates_state
 import 'package:ilithid/shared/components/app_card.dart';
 import 'package:ilithid/shared/components/app_text_field.dart';
 import 'package:ilithid/shared/components/foundry_import_dialog.dart';
+import 'package:ilithid/shared/routing/navigation.dart';
 import 'package:ilithid/shared/theme/app_colors.dart';
 
 class NpcsLibraryScreen extends ConsumerStatefulWidget {
@@ -80,94 +81,97 @@ class _NpcsLibraryScreenState extends ConsumerState<NpcsLibraryScreen>
     final filteredPublic = _filterByName(state.publicTemplates);
     final filteredMine = _filterByName(state.myTemplates);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Biblioteca de NPCs'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/'),
-        ),
-        actions: [
-          IconButton(
-            key: const Key('import_foundry_npc_button'),
-            icon: const Icon(Icons.upload_file),
-            tooltip: 'Importar do Foundry',
-            onPressed: () => _showImportDialog(context),
+    return AppBackHandler(
+      fallbackLocation: '/',
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Biblioteca de NPCs'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.backOr('/'),
           ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(key: Key('npcs_tab_community'), text: 'Comunidade'),
-            Tab(key: Key('npcs_tab_mine'), text: 'Meus NPCs'),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        key: const Key('add_npc_template_fab'),
-        backgroundColor: AppColors.primary,
-        onPressed: () => context.go('/npcs/new'),
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Novo NPC', style: TextStyle(color: Colors.white)),
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-            child: AppTextField(
-              key: const Key('npc_search_field'),
-              controller: _searchController,
-              labelText: 'Buscar por nome',
-              onChanged: (value) => setState(() => _searchQuery = value),
+          actions: [
+            IconButton(
+              key: const Key('import_foundry_npc_button'),
+              icon: const Icon(Icons.upload_file),
+              tooltip: 'Importar do Foundry',
+              onPressed: () => _showImportDialog(context),
             ),
+          ],
+          bottom: TabBar(
+            controller: _tabController,
+            tabs: const [
+              Tab(key: Key('npcs_tab_community'), text: 'Comunidade'),
+              Tab(key: Key('npcs_tab_mine'), text: 'Meus NPCs'),
+            ],
           ),
-          if (state.errorMessage != null)
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          key: const Key('add_npc_template_fab'),
+          backgroundColor: AppColors.primary,
+          onPressed: () => context.push('/npcs/new'),
+          icon: const Icon(Icons.add, color: Colors.white),
+          label: const Text('Novo NPC', style: TextStyle(color: Colors.white)),
+        ),
+        body: Column(
+          children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.damage.withAlpha(26),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.damage.withAlpha(77)),
-                ),
-                child: Text(
-                  state.errorMessage!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.damage),
-                ),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: AppTextField(
+                key: const Key('npc_search_field'),
+                controller: _searchController,
+                labelText: 'Buscar por nome',
+                onChanged: (value) => setState(() => _searchQuery = value),
               ),
             ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _NpcTemplatesList(
-                  key: const Key('npcs_community_list'),
-                  templates: filteredPublic,
-                  isLoading:
-                      state.status == NpcTemplatesStatus.loading &&
-                      state.publicTemplates.isEmpty,
-                  creatorNames: state.creatorNames,
-                  onRefresh: notifier.fetchPublicTemplates,
-                  emptyMessage:
-                      'Crie templates de NPCs para utilizá-los rapidamente em combate.',
+            if (state.errorMessage != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.damage.withAlpha(26),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.damage.withAlpha(77)),
+                  ),
+                  child: Text(
+                    state.errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: AppColors.damage),
+                  ),
                 ),
-                _NpcTemplatesList(
-                  key: const Key('npcs_mine_list'),
-                  templates: filteredMine,
-                  isLoading:
-                      state.status == NpcTemplatesStatus.loading &&
-                      state.myTemplates.isEmpty,
-                  creatorNames: state.creatorNames,
-                  onRefresh: notifier.fetchMyTemplates,
-                  emptyMessage: 'Você ainda não criou nenhum NPC.',
-                  showCreator: false,
-                ),
-              ],
+              ),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _NpcTemplatesList(
+                    key: const Key('npcs_community_list'),
+                    templates: filteredPublic,
+                    isLoading:
+                        state.status == NpcTemplatesStatus.loading &&
+                        state.publicTemplates.isEmpty,
+                    creatorNames: state.creatorNames,
+                    onRefresh: notifier.fetchPublicTemplates,
+                    emptyMessage:
+                        'Crie templates de NPCs para utilizá-los rapidamente em combate.',
+                  ),
+                  _NpcTemplatesList(
+                    key: const Key('npcs_mine_list'),
+                    templates: filteredMine,
+                    isLoading:
+                        state.status == NpcTemplatesStatus.loading &&
+                        state.myTemplates.isEmpty,
+                    creatorNames: state.creatorNames,
+                    onRefresh: notifier.fetchMyTemplates,
+                    emptyMessage: 'Você ainda não criou nenhum NPC.',
+                    showCreator: false,
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
