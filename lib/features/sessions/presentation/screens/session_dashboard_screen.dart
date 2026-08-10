@@ -343,11 +343,17 @@ class _SessionDashboardScreenState
     );
   }
 
+  /// Minimum width an NPC card needs so the avatar, the name/HP column and the
+  /// GM action buttons all fit side by side. Below this the middle column is
+  /// squeezed to zero and the card renders visually cut off, so the grid drops
+  /// to fewer columns instead of shrinking the cards.
+  static const double _npcCardMinWidth = 320;
+
   Widget _npcsBody(
     NpcInstancesState npcInstancesState,
     bool isGm,
     bool showNpcHp, {
-    int crossAxisCount = 1,
+    int maxColumns = 1,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -441,23 +447,39 @@ class _SessionDashboardScreenState
             ),
           )
         else
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossAxisCount,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              mainAxisExtent: 96,
-            ),
-            itemCount: npcInstancesState.npcInstances.length,
-            itemBuilder: (context, index) {
-              final instance = npcInstancesState.npcInstances[index];
-              return _NpcInstanceCard(
-                instance: instance,
-                isGm: isGm,
-                showNpcHp: showNpcHp,
-                sessionId: widget.sessionId,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              // The column count comes from the real width available to the
+              // grid (it changes with the window size and with the sessions
+              // sidebar), never from a hardcoded value.
+              const spacing = 16.0;
+              final available = constraints.maxWidth;
+              var columns = maxColumns;
+              while (columns > 1 &&
+                  (available - spacing * (columns - 1)) / columns <
+                      _npcCardMinWidth) {
+                columns--;
+              }
+
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  crossAxisSpacing: spacing,
+                  mainAxisSpacing: spacing,
+                  mainAxisExtent: 96,
+                ),
+                itemCount: npcInstancesState.npcInstances.length,
+                itemBuilder: (context, index) {
+                  final instance = npcInstancesState.npcInstances[index];
+                  return _NpcInstanceCard(
+                    instance: instance,
+                    isGm: isGm,
+                    showNpcHp: showNpcHp,
+                    sessionId: widget.sessionId,
+                  );
+                },
               );
             },
           ),
@@ -625,7 +647,7 @@ class _SessionDashboardScreenState
                         npcInstancesState,
                         isGm,
                         showNpcHp,
-                        crossAxisCount: 2,
+                        maxColumns: 2,
                       ),
                     ),
                     column('Log de Combate', _logBody(isGm)),
@@ -1052,6 +1074,13 @@ class _PartyMemberCard extends StatelessWidget {
   }
 }
 
+/// Tap target used by the NPC card action buttons. Smaller than the Material
+/// default so three buttons still fit next to the name and the HP bar.
+const BoxConstraints _actionButtonConstraints = BoxConstraints.tightFor(
+  width: 36,
+  height: 36,
+);
+
 class _NpcInstanceCard extends ConsumerWidget {
   final NpcInstance instance;
   final bool isGm;
@@ -1145,9 +1174,14 @@ class _NpcInstanceCard extends ConsumerWidget {
             ),
           ),
           if (isGm) ...[
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             IconButton(
               key: Key('npc_combat_action_${instance.id}'),
+              // Compact buttons: the default 48px tap target eats the space the
+              // name and the HP bar need on narrow cards.
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: _actionButtonConstraints,
               icon: const Icon(
                 Icons.flash_on,
                 color: AppColors.primary,
@@ -1168,6 +1202,9 @@ class _NpcInstanceCard extends ConsumerWidget {
               ),
             ),
             IconButton(
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: _actionButtonConstraints,
               icon: const Icon(
                 Icons.favorite_outline,
                 color: AppColors.heal,
@@ -1177,6 +1214,9 @@ class _NpcInstanceCard extends ConsumerWidget {
               tooltip: 'Ajustar HP (valor absoluto)',
             ),
             IconButton(
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: _actionButtonConstraints,
               icon: const Icon(
                 Icons.delete_outline,
                 color: AppColors.damage,
