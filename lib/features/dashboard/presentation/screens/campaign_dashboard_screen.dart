@@ -16,6 +16,7 @@ import 'package:ilithid/features/sessions/presentation/providers/sessions_provid
 import 'package:ilithid/features/sessions/presentation/providers/sessions_state.dart';
 import 'package:ilithid/shared/components/app_button.dart';
 import 'package:ilithid/shared/components/app_card.dart';
+import 'package:ilithid/shared/routing/navigation.dart';
 import 'package:ilithid/shared/theme/app_colors.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
@@ -424,17 +425,23 @@ class _CampaignDashboardScreenState
         );
         router.go('/');
       });
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
+      return const AppBackHandler(
+        fallbackLocation: '/',
+        child: Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(color: AppColors.primary),
+          ),
         ),
       );
     }
 
     if (_campaign == null) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
+      return const AppBackHandler(
+        fallbackLocation: '/',
+        child: Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(color: AppColors.primary),
+          ),
         ),
       );
     }
@@ -444,428 +451,234 @@ class _CampaignDashboardScreenState
     final activeSession = sessionsState.activeSession;
     final isLoadingSession = sessionsState.status == SessionsStatus.loading;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_campaign!.name),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/'),
+    return AppBackHandler(
+      fallbackLocation: '/',
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(_campaign!.name),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.backOr('/'),
+          ),
         ),
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: FutureBuilder<CampaignMember?>(
-              future: _membershipFuture,
-              builder: (context, snapshot) {
-                final isLoadingMember =
-                    snapshot.connectionState == ConnectionState.waiting;
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: FutureBuilder<CampaignMember?>(
+                future: _membershipFuture,
+                builder: (context, snapshot) {
+                  final isLoadingMember =
+                      snapshot.connectionState == ConnectionState.waiting;
 
-                // Prefer the live party roster (Story 9.1: reacts to Realtime
-                // role changes, e.g. a GM transfer) over the one-shot
-                // membership snapshot, so both the old and new GM see their
-                // dashboard flip without a manual reload.
-                final currentUserId = ref.watch(authProvider).user?.$id;
-                final partyState = ref.watch(partyProvider(_campaign!.id));
-                final liveMember = currentUserId == null
-                    ? null
-                    : partyState.members.cast<PartyMember?>().firstWhere(
-                        (m) => m?.member.userId == currentUserId,
-                        orElse: () => null,
+                  // Prefer the live party roster (Story 9.1: reacts to Realtime
+                  // role changes, e.g. a GM transfer) over the one-shot
+                  // membership snapshot, so both the old and new GM see their
+                  // dashboard flip without a manual reload.
+                  final currentUserId = ref.watch(authProvider).user?.$id;
+                  final partyState = ref.watch(partyProvider(_campaign!.id));
+                  final liveMember = currentUserId == null
+                      ? null
+                      : partyState.members.cast<PartyMember?>().firstWhere(
+                          (m) => m?.member.userId == currentUserId,
+                          orElse: () => null,
+                        );
+                  final member = liveMember?.member ?? snapshot.data;
+                  final isGm = member?.role == 'gm';
+
+                  Character? activeChar;
+                  if (member?.activeCharacterId != null) {
+                    try {
+                      activeChar = charactersState.characters.firstWhere(
+                        (c) => c.id == member!.activeCharacterId,
                       );
-                final member = liveMember?.member ?? snapshot.data;
-                final isGm = member?.role == 'gm';
+                    } catch (_) {}
+                  }
 
-                Character? activeChar;
-                if (member?.activeCharacterId != null) {
-                  try {
-                    activeChar = charactersState.characters.firstWhere(
-                      (c) => c.id == member!.activeCharacterId,
-                    );
-                  } catch (_) {}
-                }
-
-                return AppCard(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Icon(
-                        Icons.dashboard_outlined,
-                        size: 64,
-                        color: AppColors.primary,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        _campaign!.name,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                  return AppCard(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Icon(
+                          Icons.dashboard_outlined,
+                          size: 64,
+                          color: AppColors.primary,
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      // Role Badge
-                      Center(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isGm
-                                ? AppColors.masterMagic.withAlpha(38)
-                                : AppColors.primary.withAlpha(38),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: isGm
-                                  ? AppColors.masterMagic.withAlpha(77)
-                                  : AppColors.primary.withAlpha(77),
-                            ),
-                          ),
-                          child: Text(
-                            isGm ? 'MESTRE' : 'JOGADOR',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: isGm
-                                  ? AppColors.masterMagic
-                                  : AppColors.primary,
-                            ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _campaign!.name,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 24),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: InkWell(
-                              key: const Key('tab_general'),
-                              onTap: () => setState(() => _currentTab = 0),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(
-                                      color: _currentTab == 0
-                                          ? AppColors.primary
-                                          : Colors.transparent,
-                                      width: 2,
-                                    ),
-                                  ),
-                                ),
-                                child: Text(
-                                  'Geral',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontWeight: _currentTab == 0
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                    color: _currentTab == 0
-                                        ? AppColors.primary
-                                        : AppColors.textSecondary,
-                                  ),
-                                ),
+                        const SizedBox(height: 8),
+                        // Role Badge
+                        Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isGm
+                                  ? AppColors.masterMagic.withAlpha(38)
+                                  : AppColors.primary.withAlpha(38),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: isGm
+                                    ? AppColors.masterMagic.withAlpha(77)
+                                    : AppColors.primary.withAlpha(77),
                               ),
                             ),
-                          ),
-                          Expanded(
-                            child: InkWell(
-                              key: const Key('tab_sessions'),
-                              onTap: () => setState(() => _currentTab = 1),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(
-                                      color: _currentTab == 1
-                                          ? AppColors.primary
-                                          : Colors.transparent,
-                                      width: 2,
-                                    ),
-                                  ),
-                                ),
-                                child: Text(
-                                  'Sessões',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontWeight: _currentTab == 1
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                    color: _currentTab == 1
-                                        ? AppColors.primary
-                                        : AppColors.textSecondary,
-                                  ),
-                                ),
+                            child: Text(
+                              isGm ? 'MESTRE' : 'JOGADOR',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: isGm
+                                    ? AppColors.masterMagic
+                                    : AppColors.primary,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-
-                      if (_currentTab == 0) ...[
-                        // Code hex card
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 12,
-                            horizontal: 16,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.background,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: Column(
-                            children: [
-                              const Text(
-                                'CÓDIGO DA CAMPANHA (HEX ID)',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.5,
-                                  color: AppColors.textMuted,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                widget.hexId.toUpperCase(),
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 2,
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                            ],
                           ),
                         ),
                         const SizedBox(height: 24),
-
-                        // Player active character section
-                        if (isLoadingMember) ...[
-                          const Center(
-                            child: CircularProgressIndicator(
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ] else if (member != null && !isGm) ...[
-                          const Divider(height: 32, color: AppColors.border),
-                          const Text(
-                            'SUA FICHA ATIVA',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.5,
-                              color: AppColors.textMuted,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          if (activeChar != null) ...[
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: AppColors.background,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.border),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.shield_outlined,
-                                    color: AppColors.primary,
-                                    size: 28,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: InkWell(
+                                key: const Key('tab_general'),
+                                onTap: () => setState(() => _currentTab = 0),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
                                   ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          activeChar.name,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                            color: AppColors.textPrimary,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'HP Máx: ${activeChar.hpMax} | CA: ${activeChar.ac}',
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            color: AppColors.textSecondary,
-                                          ),
-                                        ),
-                                      ],
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: _currentTab == 0
+                                            ? AppColors.primary
+                                            : Colors.transparent,
+                                        width: 2,
+                                      ),
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                          ] else ...[
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                color: AppColors.damage.withAlpha(26),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: AppColors.damage.withAlpha(77),
+                                  child: Text(
+                                    'Geral',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontWeight: _currentTab == 0
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: _currentTab == 0
+                                          ? AppColors.primary
+                                          : AppColors.textSecondary,
+                                    ),
+                                  ),
                                 ),
                               ),
-                              child: const Text(
-                                'Nenhum personagem ativo selecionado.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: AppColors.damage,
-                                  fontWeight: FontWeight.bold,
+                            ),
+                            Expanded(
+                              child: InkWell(
+                                key: const Key('tab_sessions'),
+                                onTap: () => setState(() => _currentTab = 1),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: _currentTab == 1
+                                            ? AppColors.primary
+                                            : Colors.transparent,
+                                        width: 2,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Sessões',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontWeight: _currentTab == 1
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: _currentTab == 1
+                                          ? AppColors.primary
+                                          : AppColors.textSecondary,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
                           ],
-                          const SizedBox(height: 12),
-                          AppButton(
-                            key: const Key('change_active_char_button'),
-                            onPressed: () => _showCharacterSwapSheet(
-                              context,
-                              _campaign!.id,
-                              member.activeCharacterId,
+                        ),
+                        const SizedBox(height: 24),
+
+                        if (_currentTab == 0) ...[
+                          // Code hex card
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                              horizontal: 16,
                             ),
-                            variant: AppButtonVariant.secondary,
-                            child: Text(
-                              activeChar != null
-                                  ? 'Trocar Ficha Ativa'
-                                  : 'Selecionar Ficha Ativa',
+                            decoration: BoxDecoration(
+                              color: AppColors.background,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Column(
+                              children: [
+                                const Text(
+                                  'CÓDIGO DA CAMPANHA (HEX ID)',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.5,
+                                    color: AppColors.textMuted,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  widget.hexId.toUpperCase(),
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 2,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
+                          const SizedBox(height: 24),
 
-                        // Active Session Section
-                        const Divider(height: 32, color: AppColors.border),
-                        if (isLoadingSession) ...[
-                          const Center(
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(vertical: 16.0),
+                          // Player active character section
+                          if (isLoadingMember) ...[
+                            const Center(
                               child: CircularProgressIndicator(
                                 color: AppColors.primary,
                               ),
                             ),
-                          ),
-                        ] else ...[
-                          if (activeSession != null) ...[
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: AppColors.heal.withAlpha(26),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: AppColors.heal.withAlpha(77),
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.play_circle_fill_outlined,
-                                        color: AppColors.heal,
-                                        size: 28,
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            const Text(
-                                              'Sessão em Andamento!',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 16,
-                                                color: AppColors.textPrimary,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              'Iniciada em: ${_formatDate(activeSession.startedAt)}',
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                color: AppColors.textSecondary,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  AppButton(
-                                    key: const Key('enter_session_button'),
-                                    onPressed: () {
-                                      context.go(
-                                        '/campaigns/${widget.hexId}/session/${activeSession.id}',
-                                      );
-                                    },
-                                    child: const Text('Entrar na Sessão'),
-                                  ),
-                                  if (isGm) ...[
-                                    const SizedBox(height: 12),
-                                    AppButton(
-                                      key: const Key('end_session_button'),
-                                      variant: AppButtonVariant.danger,
-                                      onPressed: () =>
-                                          _showEndSessionConfirmation(
-                                            context,
-                                            activeSession.id,
-                                          ),
-                                      child: const Text('Encerrar Sessão'),
-                                    ),
-                                  ],
-                                ],
+                          ] else if (member != null && !isGm) ...[
+                            const Divider(height: 32, color: AppColors.border),
+                            const Text(
+                              'SUA FICHA ATIVA',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.5,
+                                color: AppColors.textMuted,
                               ),
                             ),
-                          ] else ...[
-                            if (isGm) ...[
-                              AppButton(
-                                key: const Key('start_session_button'),
-                                onPressed: () async {
-                                  final notifier = ref.read(
-                                    sessionsProvider(_campaign!.id).notifier,
-                                  );
-                                  final session = await notifier
-                                      .createSession();
-                                  if (session != null && context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Sessão iniciada com sucesso!',
-                                        ),
-                                        backgroundColor: AppColors.heal,
-                                      ),
-                                    );
-                                  }
-                                },
-                                child: const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.play_arrow, color: Colors.white),
-                                    SizedBox(width: 8),
-                                    Text('Iniciar Sessão'),
-                                  ],
-                                ),
-                              ),
-                            ] else ...[
+                            const SizedBox(height: 12),
+                            if (activeChar != null) ...[
                               Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
@@ -873,90 +686,298 @@ class _CampaignDashboardScreenState
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(color: AppColors.border),
                                 ),
-                                child: const Row(
+                                child: Row(
                                   children: [
-                                    Icon(
-                                      Icons.info_outline,
-                                      color: AppColors.textSecondary,
-                                      size: 24,
+                                    const Icon(
+                                      Icons.shield_outlined,
+                                      color: AppColors.primary,
+                                      size: 28,
                                     ),
-                                    SizedBox(width: 16),
+                                    const SizedBox(width: 16),
                                     Expanded(
-                                      child: Text(
-                                        'Nenhuma sessão ativa no momento. Aguarde o Mestre iniciar.',
-                                        style: TextStyle(
-                                          color: AppColors.textSecondary,
-                                          fontSize: 14,
-                                        ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            activeChar.name,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                              color: AppColors.textPrimary,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'HP Máx: ${activeChar.hpMax} | CA: ${activeChar.ac}',
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              color: AppColors.textSecondary,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                            ],
-                          ],
-                        ],
-                      ] else ...[
-                        _buildSessionsTab(sessionsState, isGm),
-                      ],
-                      const Divider(height: 32, color: AppColors.border),
-                      AppButton(
-                        key: const Key('dashboard_share_button'),
-                        onPressed: () => _showShareBottomSheet(context),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.share, color: Colors.white, size: 18),
-                            SizedBox(width: 8),
-                            Text('Compartilhar Campanha'),
-                          ],
-                        ),
-                      ),
-                      if (isGm) ...[
-                        const SizedBox(height: 12),
-                        AppButton(
-                          key: const Key('transfer_gm_button'),
-                          variant: AppButtonVariant.secondary,
-                          onPressed: () => _showTransferGmDialog(context),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.swap_horiz,
-                                color: Colors.white,
-                                size: 18,
+                            ] else ...[
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: AppColors.damage.withAlpha(26),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: AppColors.damage.withAlpha(77),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Nenhum personagem ativo selecionado.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: AppColors.damage,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
-                              SizedBox(width: 8),
-                              Text('Transferir Mestre'),
                             ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
+                            const SizedBox(height: 12),
+                            AppButton(
+                              key: const Key('change_active_char_button'),
+                              onPressed: () => _showCharacterSwapSheet(
+                                context,
+                                _campaign!.id,
+                                member.activeCharacterId,
+                              ),
+                              variant: AppButtonVariant.secondary,
+                              child: Text(
+                                activeChar != null
+                                    ? 'Trocar Ficha Ativa'
+                                    : 'Selecionar Ficha Ativa',
+                              ),
+                            ),
+                          ],
+
+                          // Active Session Section
+                          const Divider(height: 32, color: AppColors.border),
+                          if (isLoadingSession) ...[
+                            const Center(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 16.0),
+                                child: CircularProgressIndicator(
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          ] else ...[
+                            if (activeSession != null) ...[
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: AppColors.heal.withAlpha(26),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: AppColors.heal.withAlpha(77),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.play_circle_fill_outlined,
+                                          color: AppColors.heal,
+                                          size: 28,
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              const Text(
+                                                'Sessão em Andamento!',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                  color: AppColors.textPrimary,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Iniciada em: ${_formatDate(activeSession.startedAt)}',
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  color:
+                                                      AppColors.textSecondary,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    AppButton(
+                                      key: const Key('enter_session_button'),
+                                      onPressed: () {
+                                        context.push(
+                                          '/campaigns/${widget.hexId}/session/${activeSession.id}',
+                                        );
+                                      },
+                                      child: const Text('Entrar na Sessão'),
+                                    ),
+                                    if (isGm) ...[
+                                      const SizedBox(height: 12),
+                                      AppButton(
+                                        key: const Key('end_session_button'),
+                                        variant: AppButtonVariant.danger,
+                                        onPressed: () =>
+                                            _showEndSessionConfirmation(
+                                              context,
+                                              activeSession.id,
+                                            ),
+                                        child: const Text('Encerrar Sessão'),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ] else ...[
+                              if (isGm) ...[
+                                AppButton(
+                                  key: const Key('start_session_button'),
+                                  onPressed: () async {
+                                    final notifier = ref.read(
+                                      sessionsProvider(_campaign!.id).notifier,
+                                    );
+                                    final session = await notifier
+                                        .createSession();
+                                    if (session != null && context.mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Sessão iniciada com sucesso!',
+                                          ),
+                                          backgroundColor: AppColors.heal,
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  child: const Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.play_arrow,
+                                        color: Colors.white,
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text('Iniciar Sessão'),
+                                    ],
+                                  ),
+                                ),
+                              ] else ...[
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.background,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: AppColors.border),
+                                  ),
+                                  child: const Row(
+                                    children: [
+                                      Icon(
+                                        Icons.info_outline,
+                                        color: AppColors.textSecondary,
+                                        size: 24,
+                                      ),
+                                      SizedBox(width: 16),
+                                      Expanded(
+                                        child: Text(
+                                          'Nenhuma sessão ativa no momento. Aguarde o Mestre iniciar.',
+                                          style: TextStyle(
+                                            color: AppColors.textSecondary,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ],
+                        ] else ...[
+                          _buildSessionsTab(sessionsState, isGm),
+                        ],
+                        const Divider(height: 32, color: AppColors.border),
                         AppButton(
-                          key: const Key('end_campaign_button'),
-                          variant: AppButtonVariant.danger,
-                          onPressed: () =>
-                              _showEndCampaignConfirmation(context),
+                          key: const Key('dashboard_share_button'),
+                          onPressed: () => _showShareBottomSheet(context),
                           child: const Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.gavel, color: Colors.white, size: 18),
+                              Icon(Icons.share, color: Colors.white, size: 18),
                               SizedBox(width: 8),
-                              Text('Finalizar Campanha'),
+                              Text('Compartilhar Campanha'),
                             ],
                           ),
                         ),
+                        if (isGm) ...[
+                          const SizedBox(height: 12),
+                          AppButton(
+                            key: const Key('transfer_gm_button'),
+                            variant: AppButtonVariant.secondary,
+                            onPressed: () => _showTransferGmDialog(context),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.swap_horiz,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                                SizedBox(width: 8),
+                                Text('Transferir Mestre'),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          AppButton(
+                            key: const Key('end_campaign_button'),
+                            variant: AppButtonVariant.danger,
+                            onPressed: () =>
+                                _showEndCampaignConfirmation(context),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.gavel,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                                SizedBox(width: 8),
+                                Text('Finalizar Campanha'),
+                              ],
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        AppButton(
+                          onPressed: () => context.backOr('/'),
+                          variant: AppButtonVariant.secondary,
+                          child: const Text('Voltar para Home'),
+                        ),
                       ],
-                      const SizedBox(height: 12),
-                      AppButton(
-                        onPressed: () => context.go('/'),
-                        variant: AppButtonVariant.secondary,
-                        child: const Text('Voltar para Home'),
-                      ),
-                    ],
-                  ),
-                );
-              },
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ),

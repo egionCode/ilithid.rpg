@@ -8,6 +8,7 @@ import 'package:ilithid/features/characters/presentation/providers/characters_pr
 import 'package:ilithid/features/characters/presentation/providers/characters_state.dart';
 import 'package:ilithid/shared/components/app_button.dart';
 import 'package:ilithid/shared/components/app_card.dart';
+import 'package:ilithid/shared/routing/navigation.dart';
 import 'package:ilithid/shared/theme/app_colors.dart';
 
 class JoinCampaignScreen extends ConsumerStatefulWidget {
@@ -241,7 +242,7 @@ class _JoinCampaignScreenState extends ConsumerState<JoinCampaignScreen> {
           backgroundColor: AppColors.heal,
         ),
       );
-      context.go('/campaigns/${_foundCampaign!.hexId}');
+      context.pushReplacement('/campaigns/${_foundCampaign!.hexId}');
     }
   }
 
@@ -249,424 +250,436 @@ class _JoinCampaignScreenState extends ConsumerState<JoinCampaignScreen> {
   Widget build(BuildContext context) {
     final charactersState = ref.watch(charactersProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Entrar em Campanha'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/'),
+    return AppBackHandler(
+      fallbackLocation: '/',
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Entrar em Campanha'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.backOr('/'),
+          ),
         ),
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  AppCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Icon(
-                          Icons.group_add_outlined,
-                          size: 64,
-                          color: AppColors.primary,
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Insira o código da campanha',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Digite o código hexadecimal da campanha enviado pelo Mestre.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        TextFormField(
-                          key: const Key('hex_id_field'),
-                          controller: _codeController,
-                          decoration: InputDecoration(
-                            labelText: 'Código da Campanha (Hex ID)',
-                            hintText: 'ex: abc12345',
-                            labelStyle: const TextStyle(
-                              color: AppColors.textSecondary,
-                            ),
-                            hintStyle: const TextStyle(
-                              color: AppColors.textMuted,
-                            ),
-                            enabledBorder: const OutlineInputBorder(
-                              borderSide: BorderSide(color: AppColors.border),
-                            ),
-                            focusedBorder: const OutlineInputBorder(
-                              borderSide: BorderSide(color: AppColors.primary),
-                            ),
-                            suffixIcon: _codeController.text.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(
-                                      Icons.clear,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                    onPressed: () {
-                                      _codeController.clear();
-                                      setState(() {
-                                        _searchPerformed = false;
-                                        _foundCampaign = null;
-                                        _isAlreadyMember = false;
-                                        _selectedCharacter = null;
-                                      });
-                                    },
-                                  )
-                                : null,
-                          ),
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontFamily: 'monospace',
-                            fontSize: 16,
-                            letterSpacing: 1.5,
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'O código da campanha é obrigatório';
-                            }
-                            return null;
-                          },
-                          onChanged: (_) => setState(() {}),
-                        ),
-                        const SizedBox(height: 20),
-                        AppButton(
-                          key: const Key('search_campaign_button'),
-                          onPressed: _isSearching
-                              ? null
-                              : () {
-                                  if (_formKey.currentState?.validate() ??
-                                      false) {
-                                    _searchCampaign();
-                                  }
-                                },
-                          child: _isSearching
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text('Buscar Campanha'),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // If search was performed and no campaign was found
-                  if (_searchPerformed && _foundCampaign == null) ...[
-                    const SizedBox(height: 20),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.damage.withAlpha(26),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: AppColors.damage.withAlpha(77),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.error_outline,
-                            color: AppColors.damage,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Nenhuma campanha encontrada para o código "${_codeController.text}".',
-                              style: const TextStyle(
-                                color: AppColors.damage,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-
-                  // If campaign was found
-                  if (_foundCampaign != null) ...[
-                    const SizedBox(height: 24),
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                     AppCard(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Text(
-                            'Campanha Encontrada',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textSecondary,
-                              letterSpacing: 1,
-                            ),
+                          const Icon(
+                            Icons.group_add_outlined,
+                            size: 64,
+                            color: AppColors.primary,
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _foundCampaign!.name,
-                            style: const TextStyle(
-                              fontSize: 22,
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Insira o código da campanha',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
                               color: AppColors.textPrimary,
                             ),
                           ),
-                          const SizedBox(height: 6),
-                          const Row(
-                            children: [
-                              Icon(
-                                Icons.circle,
-                                size: 8,
-                                color: AppColors.heal,
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Digite o código hexadecimal da campanha enviado pelo Mestre.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          TextFormField(
+                            key: const Key('hex_id_field'),
+                            controller: _codeController,
+                            decoration: InputDecoration(
+                              labelText: 'Código da Campanha (Hex ID)',
+                              hintText: 'ex: abc12345',
+                              labelStyle: const TextStyle(
+                                color: AppColors.textSecondary,
                               ),
-                              SizedBox(width: 6),
-                              Text(
-                                'Status: Ativa',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppColors.textSecondary,
+                              hintStyle: const TextStyle(
+                                color: AppColors.textMuted,
+                              ),
+                              enabledBorder: const OutlineInputBorder(
+                                borderSide: BorderSide(color: AppColors.border),
+                              ),
+                              focusedBorder: const OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: AppColors.primary,
                                 ),
                               ),
-                            ],
-                          ),
-                          const Divider(height: 32, color: AppColors.border),
-
-                          // If already a member
-                          if (_isAlreadyMember) ...[
-                            const Icon(
-                              Icons.check_circle_outline,
-                              size: 48,
-                              color: AppColors.heal,
+                              suffixIcon: _codeController.text.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(
+                                        Icons.clear,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                      onPressed: () {
+                                        _codeController.clear();
+                                        setState(() {
+                                          _searchPerformed = false;
+                                          _foundCampaign = null;
+                                          _isAlreadyMember = false;
+                                          _selectedCharacter = null;
+                                        });
+                                      },
+                                    )
+                                  : null,
                             ),
-                            const SizedBox(height: 12),
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontFamily: 'monospace',
+                              fontSize: 16,
+                              letterSpacing: 1.5,
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'O código da campanha é obrigatório';
+                              }
+                              return null;
+                            },
+                            onChanged: (_) => setState(() {}),
+                          ),
+                          const SizedBox(height: 20),
+                          AppButton(
+                            key: const Key('search_campaign_button'),
+                            onPressed: _isSearching
+                                ? null
+                                : () {
+                                    if (_formKey.currentState?.validate() ??
+                                        false) {
+                                      _searchCampaign();
+                                    }
+                                  },
+                            child: _isSearching
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text('Buscar Campanha'),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // If search was performed and no campaign was found
+                    if (_searchPerformed && _foundCampaign == null) ...[
+                      const SizedBox(height: 20),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.damage.withAlpha(26),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.damage.withAlpha(77),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              color: AppColors.damage,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Nenhuma campanha encontrada para o código "${_codeController.text}".',
+                                style: const TextStyle(
+                                  color: AppColors.damage,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    // If campaign was found
+                    if (_foundCampaign != null) ...[
+                      const SizedBox(height: 24),
+                      AppCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
                             const Text(
-                              'Você já participa desta campanha!',
-                              textAlign: TextAlign.center,
+                              'Campanha Encontrada',
                               style: TextStyle(
-                                fontSize: 15,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textSecondary,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _foundCampaign!.name,
+                              style: const TextStyle(
+                                fontSize: 22,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.textPrimary,
                               ),
                             ),
-                            const SizedBox(height: 20),
-                            AppButton(
-                              onPressed: () => context.go(
-                                '/campaigns/${_foundCampaign!.hexId}',
-                              ),
-                              child: const Text('Ir para o Dashboard'),
-                            ),
-                          ]
-                          // Select Character to join
-                          else ...[
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            const SizedBox(height: 6),
+                            const Row(
                               children: [
-                                const Expanded(
-                                  child: Text(
-                                    'Selecione sua Ficha Ativa',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
+                                Icon(
+                                  Icons.circle,
+                                  size: 8,
+                                  color: AppColors.heal,
                                 ),
-                                TextButton.icon(
-                                  key: const Key('quick_char_dialog_button'),
-                                  onPressed: _showQuickCharacterDialog,
-                                  icon: const Icon(
-                                    Icons.add,
-                                    size: 16,
-                                    color: AppColors.primary,
-                                  ),
-                                  label: const Text(
-                                    'Nova Ficha',
-                                    style: TextStyle(
-                                      color: AppColors.primary,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                    ),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Status: Ativa',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.textSecondary,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 12),
+                            const Divider(height: 32, color: AppColors.border),
 
-                            if (charactersState.status ==
-                                    CharactersStatus.loading &&
-                                charactersState.characters.isEmpty) ...[
-                              const Center(
-                                child: CircularProgressIndicator(
-                                  color: AppColors.primary,
+                            // If already a member
+                            if (_isAlreadyMember) ...[
+                              const Icon(
+                                Icons.check_circle_outline,
+                                size: 48,
+                                color: AppColors.heal,
+                              ),
+                              const SizedBox(height: 12),
+                              const Text(
+                                'Você já participa desta campanha!',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary,
                                 ),
                               ),
-                            ] else if (charactersState.characters.isEmpty) ...[
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 24,
-                                  horizontal: 16,
+                              const SizedBox(height: 20),
+                              AppButton(
+                                onPressed: () => context.pushReplacement(
+                                  '/campaigns/${_foundCampaign!.hexId}',
                                 ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.background,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: AppColors.border),
-                                ),
-                                child: Column(
-                                  children: [
-                                    const Icon(
-                                      Icons.folder_open_outlined,
-                                      color: AppColors.textMuted,
-                                      size: 40,
-                                    ),
-                                    const SizedBox(height: 12),
-                                    const Text(
-                                      'Você não possui fichas de personagem',
-                                      textAlign: TextAlign.center,
+                                child: const Text('Ir para o Dashboard'),
+                              ),
+                            ]
+                            // Select Character to join
+                            else ...[
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Expanded(
+                                    child: Text(
+                                      'Selecione sua Ficha Ativa',
                                       style: TextStyle(
-                                        fontSize: 14,
+                                        fontSize: 16,
                                         fontWeight: FontWeight.bold,
                                         color: AppColors.textPrimary,
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
-                                    const Text(
-                                      'Crie uma Ficha Rápida para poder entrar na campanha.',
-                                      textAlign: TextAlign.center,
+                                  ),
+                                  TextButton.icon(
+                                    key: const Key('quick_char_dialog_button'),
+                                    onPressed: _showQuickCharacterDialog,
+                                    icon: const Icon(
+                                      Icons.add,
+                                      size: 16,
+                                      color: AppColors.primary,
+                                    ),
+                                    label: const Text(
+                                      'Nova Ficha',
                                       style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textSecondary,
+                                        color: AppColors.primary,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
                                       ),
                                     ),
-                                    const SizedBox(height: 16),
-                                    AppButton(
-                                      key: const Key(
-                                        'quick_char_dialog_empty_button',
-                                      ),
-                                      onPressed: _showQuickCharacterDialog,
-                                      variant: AppButtonVariant.secondary,
-                                      child: const Text('Criar Ficha Rápida'),
-                                    ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                            ] else ...[
-                              // Character list selection
-                              ListView.separated(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: charactersState.characters.length,
-                                separatorBuilder: (context, index) =>
-                                    const SizedBox(height: 8),
-                                itemBuilder: (context, index) {
-                                  final char =
-                                      charactersState.characters[index];
-                                  final isSelected =
-                                      _selectedCharacter?.id == char.id;
+                              const SizedBox(height: 12),
 
-                                  return InkWell(
-                                    onTap: () {
-                                      setState(() {
-                                        _selectedCharacter = char;
-                                      });
-                                    },
+                              if (charactersState.status ==
+                                      CharactersStatus.loading &&
+                                  charactersState.characters.isEmpty) ...[
+                                const Center(
+                                  child: CircularProgressIndicator(
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ] else if (charactersState
+                                  .characters
+                                  .isEmpty) ...[
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 24,
+                                    horizontal: 16,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.background,
                                     borderRadius: BorderRadius.circular(8),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 12,
+                                    border: Border.all(color: AppColors.border),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      const Icon(
+                                        Icons.folder_open_outlined,
+                                        color: AppColors.textMuted,
+                                        size: 40,
                                       ),
-                                      decoration: BoxDecoration(
-                                        color: isSelected
-                                            ? AppColors.primary.withAlpha(26)
-                                            : AppColors.background,
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: isSelected
-                                              ? AppColors.primary
-                                              : AppColors.border,
-                                          width: isSelected ? 1.5 : 1.0,
+                                      const SizedBox(height: 12),
+                                      const Text(
+                                        'Você não possui fichas de personagem',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.textPrimary,
                                         ),
                                       ),
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            isSelected
-                                                ? Icons.radio_button_checked
-                                                : Icons.radio_button_off,
+                                      const SizedBox(height: 4),
+                                      const Text(
+                                        'Crie uma Ficha Rápida para poder entrar na campanha.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      AppButton(
+                                        key: const Key(
+                                          'quick_char_dialog_empty_button',
+                                        ),
+                                        onPressed: _showQuickCharacterDialog,
+                                        variant: AppButtonVariant.secondary,
+                                        child: const Text('Criar Ficha Rápida'),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ] else ...[
+                                // Character list selection
+                                ListView.separated(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: charactersState.characters.length,
+                                  separatorBuilder: (context, index) =>
+                                      const SizedBox(height: 8),
+                                  itemBuilder: (context, index) {
+                                    final char =
+                                        charactersState.characters[index];
+                                    final isSelected =
+                                        _selectedCharacter?.id == char.id;
+
+                                    return InkWell(
+                                      onTap: () {
+                                        setState(() {
+                                          _selectedCharacter = char;
+                                        });
+                                      },
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 12,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? AppColors.primary.withAlpha(26)
+                                              : AppColors.background,
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          border: Border.all(
                                             color: isSelected
                                                 ? AppColors.primary
-                                                : AppColors.textMuted,
-                                            size: 20,
+                                                : AppColors.border,
+                                            width: isSelected ? 1.5 : 1.0,
                                           ),
-                                          const SizedBox(width: 16),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  char.name,
-                                                  style: TextStyle(
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: isSelected
-                                                        ? AppColors.primary
-                                                        : AppColors.textPrimary,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 2),
-                                                Text(
-                                                  'HP Máx: ${char.hpMax} | CA: ${char.ac}',
-                                                  style: const TextStyle(
-                                                    fontSize: 12,
-                                                    color:
-                                                        AppColors.textSecondary,
-                                                  ),
-                                                ),
-                                              ],
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              isSelected
+                                                  ? Icons.radio_button_checked
+                                                  : Icons.radio_button_off,
+                                              color: isSelected
+                                                  ? AppColors.primary
+                                                  : AppColors.textMuted,
+                                              size: 20,
                                             ),
-                                          ),
-                                        ],
+                                            const SizedBox(width: 16),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    char.name,
+                                                    style: TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: isSelected
+                                                          ? AppColors.primary
+                                                          : AppColors
+                                                                .textPrimary,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    'HP Máx: ${char.hpMax} | CA: ${char.ac}',
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                      color: AppColors
+                                                          .textSecondary,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
+                                    );
+                                  },
+                                ),
+                              ],
+                              const SizedBox(height: 32),
+                              AppButton(
+                                key: const Key('join_campaign_submit_button'),
+                                onPressed: _selectedCharacter == null
+                                    ? null
+                                    : _joinCampaign,
+                                child: const Text('Entrar na Campanha'),
                               ),
                             ],
-                            const SizedBox(height: 32),
-                            AppButton(
-                              key: const Key('join_campaign_submit_button'),
-                              onPressed: _selectedCharacter == null
-                                  ? null
-                                  : _joinCampaign,
-                              child: const Text('Entrar na Campanha'),
-                            ),
                           ],
-                        ],
+                        ),
                       ),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
