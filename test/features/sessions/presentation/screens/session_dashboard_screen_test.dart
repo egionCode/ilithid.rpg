@@ -367,5 +367,77 @@ void main() {
         findsOneWidget,
       );
     });
+
+    testWidgets('NPC cards keep the name and the HP bar visible', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1568, 650);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final npcInstanceRow = models.Row.fromMap({
+        r'$id': 'npc_1',
+        r'$tableId': appwriteNpcInstancesTableId,
+        r'$databaseId': appwriteDatabaseId,
+        r'$createdAt': '',
+        r'$updatedAt': '',
+        r'$permissions': <String>[],
+        r'$sequence': 0,
+        'sessionId': 'session_1',
+        'name': 'Goblin Chefe',
+        'hpCurrent': 7,
+        'hpMax': 12,
+        'hpTemp': 0,
+        'ac': 15,
+      });
+
+      when(
+        () => mockTablesDb.listRows(
+          databaseId: any(named: 'databaseId'),
+          tableId: any(named: 'tableId'),
+          queries: any(named: 'queries'),
+        ),
+      ).thenAnswer((invocation) async {
+        final tableId =
+            invocation.namedArguments[const Symbol('tableId')] as String;
+        if (tableId == appwriteNpcInstancesTableId) {
+          return models.RowList.fromMap({
+            'total': 1,
+            'rows': [npcInstanceRow.toMap()],
+          });
+        }
+        return models.RowList.fromMap({
+          'total': 0,
+          'rows': <Map<String, dynamic>>[],
+        });
+      });
+
+      final gmMember = CampaignMember(
+        id: 'member_1',
+        campaignId: 'camp_123',
+        userId: 'user_123',
+        activeCharacterId: 'char_789',
+        role: 'gm',
+        joinedAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(buildTestWidget(member: gmMember));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(tester.takeException(), isNull);
+
+      // Regression guard: the NPC grid used a hardcoded 2-column layout, so on
+      // a narrow column each card shrank until the name and the HP bar were
+      // squeezed to zero width and the card looked cut off.
+      final nameSize = tester.getSize(find.text('Goblin Chefe'));
+      expect(nameSize.width, greaterThan(0));
+
+      final hpSize = tester.getSize(find.text('7 / 12 HP'));
+      expect(hpSize.width, greaterThan(0));
+    });
   });
 }
